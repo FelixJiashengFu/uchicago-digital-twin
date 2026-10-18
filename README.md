@@ -13,6 +13,8 @@ surroundings, built from OpenStreetMap data and rendered with Three.js, in a
 - **Chicago Manual of Style**: building notes carry footnotes and a bibliography in
   CMOS notes-bibliography form.
 
+**Live:** https://felixjiashengfu.github.io/uchicago-digital-twin/
+
 ## What it does
 
 - **Real geometry**: 3,857 building footprints (218 University buildings), roads,
