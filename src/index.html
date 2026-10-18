@@ -1,0 +1,1257 @@
+<title>芝加哥大学数字孪生</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;1,8..60,400&display=swap">
+<style>
+/* Layout: a full-bleed white massing model of Hyde Park; instrument panels pinned to its edges like a planning office light table.
+   Palette from the Chicago flag (white field, lake-blue stripes, red six-point stars) plus UChicago maroon for selection. */
+:root{
+  --paper:#F3F7FA; --panel:rgba(251,253,254,.93); --panel-solid:#FBFDFE; --ink:#13212C; --muted:#5A6B78; --hair:rgba(19,33,44,.13);
+  --lake:#B3DDF2; --lake-ink:#1F6F9E; --star:#E1172D; --maroon:#800000; --on-maroon:#FFFFFF; --sign:#0E6A3E; --sign-ink:#FFFFFF;
+  --shadow:0 1px 2px rgba(19,33,44,.06),0 10px 30px rgba(19,33,44,.10);
+  --f-display:"Big Shoulders Display","Oswald","Arial Narrow",sans-serif;
+  --f-ui:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --f-cite:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --rail:296px; --info:364px; --g:14px;
+  --gl:max(16px, env(safe-area-inset-left, 0px)); --gr:max(16px, env(safe-area-inset-right, 0px));
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0A131B; --panel:rgba(13,23,32,.92); --panel-solid:#0E1822; --ink:#E5EDF3; --muted:#94A6B5; --hair:rgba(229,237,243,.14);
+    --lake:#86C8EA; --lake-ink:#8FD0F2; --star:#FF4C5E; --maroon:#C0464E; --on-maroon:#FFFFFF; --sign:#178A52; --sign-ink:#FFFFFF;
+    --shadow:0 1px 2px rgba(0,0,0,.35),0 10px 30px rgba(0,0,0,.4); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0A131B; --panel:rgba(13,23,32,.92); --panel-solid:#0E1822; --ink:#E5EDF3; --muted:#94A6B5; --hair:rgba(229,237,243,.14);
+  --lake:#86C8EA; --lake-ink:#8FD0F2; --star:#FF4C5E; --maroon:#C0464E; --on-maroon:#FFFFFF; --sign:#178A52; --sign-ink:#FFFFFF;
+  --shadow:0 1px 2px rgba(0,0,0,.35),0 10px 30px rgba(0,0,0,.4); color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-ui);overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--lake-ink);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+#app{position:relative;height:100%;overflow:hidden;box-sizing:border-box;padding-left:var(--gl);padding-right:var(--gr)}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+#overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.card{background:var(--panel);border:1px solid var(--hair);border-radius:6px;box-shadow:var(--shadow);-webkit-backdrop-filter:blur(10px) saturate(1.15);backdrop-filter:blur(10px) saturate(1.15)}
+
+/* left rail */
+.rail{position:absolute;top:var(--g);left:var(--gl);bottom:var(--g);width:var(--rail);display:flex;flex-direction:column;gap:10px;pointer-events:none;z-index:4}
+.rail>*{pointer-events:auto}
+.brand{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px}
+.flag{width:42px;height:28px;flex:none;border-radius:2px;box-shadow:0 0 0 1px var(--hair)}
+.brand-text{min-width:0;flex:1}
+.kicker{font:700 13px/1 var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--lake-ink)}
+.brand h1{margin:4px 0 0;font:700 16px/1.2 var(--f-ui);letter-spacing:.02em;white-space:nowrap}
+.brand h1 span{font-weight:400;color:var(--muted)}
+.ghost-btn{border:1px solid var(--hair);background:transparent;border-radius:4px;padding:5px 9px;font-size:12px;color:var(--ink);white-space:nowrap}
+.ghost-btn:hover{border-color:var(--lake-ink);color:var(--lake-ink)}
+#menuBtn{display:none}
+.controls{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.controls-scroll{overflow:auto;padding:4px 14px 12px;display:flex;flex-direction:column;gap:14px;min-height:0;flex:1}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;font:700 13px/1 var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:10px 0 8px}
+.sec-h small{font:500 11px var(--f-ui);letter-spacing:0;text-transform:none}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--hair);border-radius:5px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:7px 2px;font-size:12.5px;line-height:1.2;border-left:1px solid var(--hair)}
+.seg button:first-child{border-left:0}
+.seg button small{display:block;font-size:10px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.seg button[aria-pressed="true"] small{color:inherit;opacity:.75}
+.legend{margin-top:10px;font-size:12px;color:var(--muted);line-height:1.55}
+.legend .rows{display:grid;grid-template-columns:auto 1fr auto;gap:5px 8px;align-items:center;color:var(--ink)}
+.legend .sw{width:12px;height:12px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.legend .n{font-family:var(--f-mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.legend .ramp{height:10px;border-radius:2px;margin:6px 0 3px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.legend .ticks{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:10.5px}
+.legend .warn{margin-top:6px;padding:6px 8px;border:1px dashed var(--star);border-radius:4px;color:var(--ink);font-size:11.5px}
+.toggles{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
+.tog{display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer;user-select:none}
+.tog input{appearance:none;-webkit-appearance:none;width:26px;height:15px;border-radius:8px;background:var(--hair);position:relative;margin:0;flex:none;cursor:pointer;transition:background .15s}
+.tog input::after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:var(--panel-solid);box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.tog input:checked{background:var(--lake-ink)}
+.tog input:checked::after{transform:translateX(11px)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--hair);background:transparent;border-radius:999px;padding:4px 10px;font-size:12.5px}
+.chip:hover{border-color:var(--lake-ink);color:var(--lake-ink)}
+.lm-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.lm-list button{width:100%;display:grid;grid-template-columns:16px 1fr auto;gap:8px;align-items:center;text-align:left;border:0;background:transparent;padding:6px 4px;border-radius:4px}
+.lm-list button:hover{background:var(--hair)}
+.lm-list button[aria-current="true"]{background:var(--maroon);color:var(--on-maroon)}
+.lm-list button[aria-current="true"] .yr,.lm-list button[aria-current="true"] .en{color:inherit;opacity:.8}
+.lm-list svg{width:14px;height:14px;fill:var(--star)}
+.lm-list button[aria-current="true"] svg{fill:var(--on-maroon)}
+.lm-list .nm{min-width:0;font-size:13px;line-height:1.25}
+.lm-list .en{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lm-list .yr{font:600 13px var(--f-display);letter-spacing:.04em;color:var(--muted);font-variant-numeric:tabular-nums}
+.foot{border-top:1px solid var(--hair);padding:9px 14px 11px;font-size:11.5px;color:var(--muted);line-height:1.6}
+
+/* right info */
+.info{position:absolute;top:var(--g);right:var(--gr);width:var(--info);max-height:calc(100% - 2*var(--g) - 52px);display:flex;flex-direction:column;z-index:3;overflow:hidden}
+.info-scroll{overflow:auto;padding:14px 16px 16px;min-height:0}
+.info-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--hair)}
+.pill i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.pill.lm{border-color:var(--star);color:var(--star)}
+.pill.lm svg{width:11px;height:11px;fill:currentColor}
+.sheet-btn{display:none;margin-left:auto}
+.info h2{margin:0;font:800 30px/1 var(--f-display);letter-spacing:.01em;text-transform:uppercase;text-wrap:balance}
+.info .zh{margin-top:6px;font-size:16px;font-weight:500;text-wrap:balance}
+.street-sign{display:inline-flex;align-items:baseline;gap:8px;margin-top:10px;background:var(--sign);color:var(--sign-ink);font:700 14px/1 var(--f-display);letter-spacing:.07em;text-transform:uppercase;padding:5px 8px 4px;border-radius:2px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.75)}
+.street-sign b{font-weight:800;opacity:.85}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:14px 0 0;font-size:13px}
+.facts dt{color:var(--muted);white-space:nowrap}
+.facts dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.facts .src{color:var(--muted);font-size:11.5px}
+.desc{margin:14px 0 0;font-size:13.5px;line-height:1.75}
+.desc sup,.notes-intro sup{font-family:var(--f-cite);font-size:.72em;color:var(--lake-ink);margin-left:1px}
+.notes{margin:12px 0 0;padding:10px 0 0 18px;border-top:1px solid var(--hair);font-family:var(--f-cite);font-size:12.5px;line-height:1.5;color:var(--ink)}
+.notes li{margin:0 0 6px;padding-left:2px;overflow-wrap:anywhere}
+.notes li::marker{font-family:var(--f-cite);color:var(--lake-ink)}
+.notes a{color:var(--lake-ink)}
+.occ{margin-top:12px;font-size:12.5px;color:var(--muted)}
+.occ .bar{height:6px;background:var(--hair);border-radius:3px;margin-top:5px;overflow:hidden}
+.occ .bar i{display:block;height:100%;background:var(--star)}
+
+/* bottom time bar */
+.timebar{position:absolute;bottom:var(--g);left:calc(var(--gl) + var(--rail) + 12px);right:calc(var(--gr) + var(--info) + 12px);padding:10px 14px 9px;z-index:2;display:flex;flex-direction:column;gap:6px;min-width:0}
+.tb-row{display:flex;align-items:center;gap:12px;min-width:0}
+.icon-btn{width:32px;height:32px;flex:none;border-radius:50%;border:1px solid var(--hair);background:transparent;display:grid;place-items:center;padding:0}
+.icon-btn svg{width:13px;height:13px;fill:var(--ink)}
+.icon-btn:hover{border-color:var(--lake-ink)}
+.slider{flex:1;min-width:0;position:relative}
+.slider input{width:100%;margin:0;appearance:none;-webkit-appearance:none;height:22px;background:transparent;cursor:pointer}
+.slider input::-webkit-slider-runnable-track{height:10px;border-radius:2px;background:var(--track,var(--lake));box-shadow:inset 0 0 0 1px var(--hair)}
+.slider input::-moz-range-track{height:10px;border-radius:2px;background:var(--track,var(--lake));box-shadow:inset 0 0 0 1px var(--hair)}
+.slider input::-webkit-slider-thumb{-webkit-appearance:none;width:6px;height:22px;margin-top:-6px;border-radius:2px;background:var(--star);box-shadow:0 0 0 2px var(--panel-solid)}
+.slider input::-moz-range-thumb{width:6px;height:22px;border:0;border-radius:2px;background:var(--star);box-shadow:0 0 0 2px var(--panel-solid)}
+.slider .ticks{display:flex;justify-content:space-between;font:500 10.5px var(--f-mono);color:var(--muted);margin-top:1px;font-variant-numeric:tabular-nums}
+.clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1;flex:none;min-width:64px}
+.clock .big{font:800 30px/0.9 var(--f-display);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.clock .tz{font:600 12px var(--f-display);letter-spacing:.12em;color:var(--muted);margin-top:3px}
+.tb-row.sub{font-size:12px;color:var(--muted);flex-wrap:wrap;gap:8px 12px}
+.tb-row.sub input[type="date"]{border:1px solid var(--hair);border-radius:4px;background:transparent;padding:3px 6px;font-size:12px;font-family:var(--f-mono)}
+.live{border:1px solid var(--hair);background:transparent;border-radius:999px;padding:3px 10px 3px 8px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.live[aria-pressed="true"]{border-color:var(--star);color:var(--star)}
+.live[aria-pressed="true"] i{background:var(--star);animation:pulse 1.6s infinite}
+@keyframes pulse{50%{opacity:.25}}
+#sunInfo{min-width:0}
+
+/* bottom right hud */
+.hud{position:absolute;right:var(--gr);bottom:var(--g);width:var(--info);display:flex;align-items:stretch;gap:8px;z-index:2}
+.compass{width:44px;height:44px;flex:none;padding:0;display:grid;place-items:center;border-radius:50%}
+.compass svg{width:30px;height:30px;transition:none}
+.scalebox{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:6px 10px;font-size:11px;color:var(--muted)}
+.scalebar{height:5px;border:1.5px solid var(--ink);border-top:0}
+.scalebox .row{display:flex;justify-content:space-between;gap:8px}
+
+/* overlay pins & signs */
+.pin{position:absolute;left:0;top:0;display:flex;align-items:center;gap:4px;padding:0;border:0;background:transparent;pointer-events:auto;will-change:transform}
+.pin svg{width:18px;height:18px;fill:var(--star);flex:none;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}
+.pin span{font-size:12px;font-weight:500;line-height:1;white-space:nowrap;background:var(--panel-solid);color:var(--ink);padding:4px 6px;border-radius:3px;border:1px solid var(--hair);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.pin.compact span{display:none}
+.pin.sel span{background:var(--maroon);color:var(--on-maroon);border-color:transparent}
+.pin:hover span{border-color:var(--star)}
+.sign{position:absolute;left:0;top:0;background:var(--sign);color:var(--sign-ink);font:700 11px/1 var(--f-display);letter-spacing:.07em;text-transform:uppercase;padding:3px 5px 2px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.7),0 1px 2px rgba(0,0,0,.2);white-space:nowrap;will-change:transform}
+.sign b{font-weight:800;margin-left:5px;opacity:.85}
+.tip{position:absolute;left:0;top:0;z-index:5;pointer-events:none;max-width:260px;padding:8px 10px;font-size:12px;line-height:1.45}
+.tip b{display:block;font:700 15px/1.1 var(--f-display);letter-spacing:.04em;text-transform:uppercase}
+.tip .m{color:var(--muted)}
+#loading{position:absolute;inset:0;display:grid;place-items:center;z-index:9;background:var(--paper);font-size:14px;color:var(--muted);text-align:center;padding-inline:24px}
+#loading strong{display:block;font:800 26px var(--f-display);letter-spacing:.1em;color:var(--ink);margin-bottom:6px}
+
+/* about */
+.about-wrap{position:absolute;inset:0;z-index:8;display:grid;place-items:center;background:rgba(10,19,27,.35);padding:16px}
+.about{width:min(680px,100%);max-height:100%;overflow:auto;padding:22px 24px 20px}
+.about h3{margin:0 0 4px;font:800 26px/1 var(--f-display);letter-spacing:.06em;text-transform:uppercase}
+.about h4{margin:18px 0 6px;font:700 13px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.about p,.about li{font-size:13.5px;line-height:1.75}
+.about ol.meanings{padding-left:20px;margin:6px 0}
+.about ul.bib{list-style:none;padding:0;margin:0;font-family:var(--f-cite);font-size:13px}
+.about ul.bib li{padding-left:2em;text-indent:-2em;margin-bottom:4px;line-height:1.5}
+.about .close{float:right}
+
+@media (max-width:1180px){:root{--rail:272px;--info:330px}}
+@media (max-width:860px){
+  :root{--g:10px}
+  .rail{right:var(--gr);width:auto;bottom:auto;max-height:calc(100% - 2*var(--g))}
+  .brand{padding:9px 10px}
+  .flag{width:33px;height:22px}
+  .brand h1{font-size:15px;margin-top:3px}
+  #menuBtn{display:inline-block}
+  .controls{display:none;max-height:min(62vh,560px)}
+  .controls.open{display:flex}
+  .timebar{left:var(--gl);right:var(--gr);top:calc(var(--g) + 72px);bottom:auto;padding:8px 10px 7px}
+  .clock .big{font-size:24px}
+  #sunInfo{font-size:11px}
+  .info{left:var(--gl);right:var(--gr);width:auto;top:auto;bottom:var(--g);max-height:34%}
+  .info.expanded{max-height:72%}
+  .sheet-btn{display:inline-block}
+  .info h2{font-size:24px}
+  .hud{width:auto;bottom:auto;top:calc(var(--g) + 216px);flex-direction:column;align-items:flex-end}
+  .scalebox{display:none}
+  .compass{width:38px;height:38px}
+}
+@media (prefers-reduced-motion: reduce){.live[aria-pressed="true"] i{animation:none}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="star6" viewBox="-10 -10 20 20"><path d="M0 -10L2.5 -4.33L8.66 -5L5 0L8.66 5L2.5 4.33L0 10L-2.5 4.33L-8.66 5L-5 0L-8.66 -5L-2.5 -4.33Z"/></symbol>
+</svg>
+
+<div id="app">
+  <canvas id="scene" aria-label="芝加哥大学海德公园校区三维模型"></canvas>
+  <div id="overlay"></div>
+
+  <div class="rail">
+    <header class="brand card">
+      <svg class="flag" viewBox="0 0 36 24" aria-hidden="true">
+        <rect width="36" height="24" fill="#FFFFFF"/>
+        <rect y="4" width="36" height="4" fill="#B3DDF2"/>
+        <rect y="16" width="36" height="4" fill="#B3DDF2"/>
+        <g fill="#E1172D"><use href="#star6" x="4.6" y="9.4" width="5.2" height="5.2"/><use href="#star6" x="12" y="9.4" width="5.2" height="5.2"/><use href="#star6" x="19" y="9.4" width="5.2" height="5.2"/><use href="#star6" x="26.4" y="9.4" width="5.2" height="5.2"/></g>
+      </svg>
+      <div class="brand-text">
+        <div class="kicker">UChicago · Hyde Park</div>
+        <h1>芝加哥大学<span> · 数字孪生</span></h1>
+      </div>
+      <button class="ghost-btn" id="menuBtn" aria-expanded="false" aria-controls="controls">图层</button>
+      <button class="ghost-btn" id="aboutBtn">关于</button>
+    </header>
+
+    <section class="controls card" id="controls">
+      <div class="controls-scroll">
+        <div>
+          <div class="sec-h">视图</div>
+          <div class="seg" id="modes">
+            <button data-mode="model" aria-pressed="true">白模</button>
+            <button data-mode="style" aria-pressed="false">风格</button>
+            <button data-mode="height" aria-pressed="false">高度</button>
+            <button data-mode="activity" aria-pressed="false">活动<small>模拟</small></button>
+          </div>
+          <div class="legend" id="legend"></div>
+        </div>
+        <div>
+          <div class="sec-h">图层</div>
+          <div class="toggles">
+            <label class="tog"><input type="checkbox" id="tStars" checked>地标红星</label>
+            <label class="tog"><input type="checkbox" id="tSigns" checked>芝加哥路牌</label>
+            <label class="tog"><input type="checkbox" id="tShadows" checked>日照阴影</label>
+            <label class="tog"><input type="checkbox" id="tTrees" checked>树木</label>
+            <label class="tog"><input type="checkbox" id="tCity" checked>周边社区</label>
+          </div>
+        </div>
+        <div>
+          <div class="sec-h">视角</div>
+          <div class="chips" id="views"></div>
+        </div>
+        <div>
+          <div class="sec-h">地标导览 <small id="lmCount"></small></div>
+          <ol class="lm-list" id="lmList"></ol>
+        </div>
+      </div>
+      <div class="foot" id="foot"></div>
+    </section>
+  </div>
+
+  <aside class="info card" id="info" aria-live="polite"></aside>
+
+  <div class="timebar card">
+    <div class="tb-row">
+      <button class="icon-btn" id="playBtn" aria-label="播放一天的日照变化"><svg viewBox="0 0 12 12" id="playIcon"><path d="M2 1L11 6L2 11Z"/></svg></button>
+      <div class="slider">
+        <input type="range" id="tod" min="0" max="1439" step="1" value="720" aria-label="芝加哥当地时间">
+        <div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+      </div>
+      <div class="clock"><span class="big" id="clk">12:00</span><span class="tz" id="tzab">CDT</span></div>
+    </div>
+    <div class="tb-row sub">
+      <input type="date" id="date" aria-label="日期">
+      <button class="live" id="liveBtn" aria-pressed="true"><i></i>实时</button>
+      <span id="sunInfo" class="mono"></span>
+    </div>
+  </div>
+
+  <div class="hud">
+    <button class="compass card" id="compass" aria-label="转回正北朝上">
+      <svg viewBox="-16 -16 32 32" id="compassSvg"><g id="needle"><path d="M0 -13L4.5 0H-4.5Z" fill="var(--star)"/><path d="M0 13L4.5 0H-4.5Z" fill="var(--muted)"/><text x="0" y="-5" text-anchor="middle" font-size="6.5" font-weight="700" fill="var(--paper)" font-family="sans-serif" dy="3.6">N</text></g></svg>
+    </button>
+    <div class="scalebox card">
+      <div class="scalebar" id="scaleBar" style="width:100px"></div>
+      <div class="row"><span id="scaleLbl" class="mono">200 m</span><span id="cursorGrid" class="mono"></span></div>
+    </div>
+  </div>
+
+  <div class="tip card" id="tip" hidden></div>
+
+  <div class="about-wrap" id="about" hidden>
+    <div class="about card" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+      <button class="ghost-btn close" id="aboutClose">关闭</button>
+      <h3 id="aboutTitle">Chicago Style</h3>
+      <p>这是芝加哥大学海德公园校区的三维数字孪生。“芝加哥风格”在这里落在四件事上：</p>
+      <ol class="meanings">
+        <li><b>视觉</b>：配色取自芝加哥市旗。白色底，两道浅蓝代表密歇根湖与芝加哥河，红色六角星用来标出地标。</li>
+        <li><b>坐标</b>：芝加哥统一门牌网格以 State 街与 Madison 街交口为原点，每英里 800 号，8 个街区。悬停任意位置即显示网格坐标，街名按芝加哥路牌样式绘制。</li>
+        <li><b>建筑</b>：“风格”视图把学院哥特式、草原学派（罗比之家）、芝加哥现代主义与当代作品分开着色。</li>
+        <li><b>引注</b>：说明文字的注释与下方参考文献按《芝加哥格式手册》的注释—参考文献体例书写。这本手册由芝加哥大学出版社出版。</li>
+      </ol>
+      <h4>数据与方法</h4>
+      <p id="aboutData"></p>
+      <h4>参考文献</h4>
+      <ul class="bib" id="bib"></ul>
+    </div>
+  </div>
+
+  <div id="loading"><div><strong>HYDE PARK</strong><span id="loadMsg">正在搭建校园模型…</span></div></div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script id="campus-data" type="application/json">__TWIN_DATA__</script>
+<script>
+  setTimeout(function () {
+    if (!window.__twinReady) {
+      var m = document.getElementById('loadMsg');
+      if (m) m.textContent = '三维引擎没有加载成功。请检查网络后刷新页面。';
+    }
+  }, 15000);
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const D = JSON.parse(document.getElementById('campus-data').textContent);
+const META = D.meta;
+const $ = (s) => document.querySelector(s);
+const app = $('#app');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const narrow = () => app.clientWidth < 860;
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const fmt = (n) => Math.round(n).toLocaleString('en-US');
+const DEG = Math.PI / 180;
+const LAT0 = META.lat0, LON0 = META.lon0;
+
+/* ---------------- Chicago grid ---------------- */
+const gridE = (x) => META.gridE[0] * x + META.gridE[1];
+const gridS = (n) => META.gridS[0] * n + META.gridS[1];
+function gridLabel(x, z) {
+  const e = gridE(x), s = gridS(-z), r = (v) => Math.round(v / 2) * 2;
+  return `${fmt(Math.abs(r(e)))} ${e >= 0 ? 'E' : 'W'} · ${fmt(Math.abs(r(s)))} ${s >= 0 ? 'S' : 'N'}`;
+}
+
+/* ---------------- sources (Chicago Manual of Style, notes-bibliography) ---------------- */
+const OSM_DATE_EN = new Date(META.osm).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Chicago' });
+const OSM_DATE_ZH = new Date(META.osm).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Chicago' });
+const SRC = {
+  block: ['Jean F. Block, <i>The Uses of Gothic: Planning and Building the Campus of the University of Chicago, 1892–1932</i> (Chicago: University of Chicago Library, 1983).',
+          'Block, Jean F. <i>The Uses of Gothic: Planning and Building the Campus of the University of Chicago, 1892–1932</i>. Chicago: University of Chicago Library, 1983.'],
+  aia: ['Alice Sinkevitch and Laurie McGovern Petersen, eds., <i>AIA Guide to Chicago</i>, 3rd ed. (Urbana: University of Illinois Press, 2014).',
+        'Sinkevitch, Alice, and Laurie McGovern Petersen, eds. <i>AIA Guide to Chicago</i>. 3rd ed. Urbana: University of Illinois Press, 2014.'],
+  hoffmann: ['Donald Hoffmann, <i>Frank Lloyd Wright’s Robie House: The Illustrated Story of an Architectural Masterpiece</i> (New York: Dover, 1984).',
+             'Hoffmann, Donald. <i>Frank Lloyd Wright’s Robie House: The Illustrated Story of an Architectural Masterpiece</i>. New York: Dover, 1984.'],
+  rhodes: ['Richard Rhodes, <i>The Making of the Atomic Bomb</i> (New York: Simon &amp; Schuster, 1986).',
+           'Rhodes, Richard. <i>The Making of the Atomic Bomb</i>. New York: Simon &amp; Schuster, 1986.'],
+  schulze: ['Franz Schulze and Edward Windhorst, <i>Mies van der Rohe: A Critical Biography</i>, new and rev. ed. (Chicago: University of Chicago Press, 2012).',
+            'Schulze, Franz, and Edward Windhorst. <i>Mies van der Rohe: A Critical Biography</i>. New and rev. ed. Chicago: University of Chicago Press, 2012.'],
+  larson: ['Erik Larson, <i>The Devil in the White City: Murder, Magic, and Madness at the Fair That Changed America</i> (New York: Crown, 2003).',
+           'Larson, Erik. <i>The Devil in the White City: Murder, Magic, and Madness at the Fair That Changed America</i>. New York: Crown, 2003.'],
+};
+const BIB = [
+  SRC.block[1],
+  '<i>The Chicago Manual of Style</i>. 18th ed. Chicago: University of Chicago Press, 2024.',
+  SRC.hoffmann[1], SRC.larson[1],
+  `OpenStreetMap contributors. “OpenStreetMap.” Accessed ${OSM_DATE_EN}. https://www.openstreetmap.org/.`,
+  SRC.rhodes[1], SRC.schulze[1], SRC.aia[1],
+];
+function osmNote(b) {
+  const t = b.rel ? 'relation' : 'way', url = `https://www.openstreetmap.org/${t}/${b.id}`;
+  return `OpenStreetMap contributors, “OpenStreetMap,” ${t} ${b.id}, accessed ${OSM_DATE_EN}, <a href="${url}" target="_blank" rel="noopener">${url}</a>.`;
+}
+
+/* ---------------- curated knowledge ---------------- */
+const STYLE = {
+  gothic: { zh: '学院哥特式 · 石灰岩', col: '#B8975E' },
+  prairie: { zh: '草原学派', col: '#C4582D' },
+  modern: { zh: '芝加哥现代主义', col: '#4F7896' },
+  contemporary: { zh: '当代', col: '#2C9C92' },
+  uni: { zh: '校园建筑 · 未分类', col: '#DADCDD' },
+  city: { zh: '周边社区', col: '#CBD1D6' },
+};
+const STYLE_NAMES = {
+  gothic: ['Cobb Hall', 'Gates-Blake Hall', 'Goodspeed Hall', 'Swift Hall', 'Bond Chapel', 'Haskell Hall', 'Rosenwald Hall', 'Walker Museum', 'Stuart Hall',
+    'Harper Memorial Library', 'Classics Building', 'Wieboldt Hall', 'Social Science Research Building', 'Foster Hall', 'Kelly Hall', 'Green Hall', 'Beecher Hall',
+    'Ryerson Laboratory', 'Eckhart Hall', 'Kent Chemical Laboratory', 'Jones Laboratory', 'Snell-Hitchcock Halls', 'Anatomy', 'Zoology', 'Culver', 'Erman Biology Center',
+    'Cobb Gate', 'Mitchell Tower', 'Hutchinson Commons', 'Reynolds Club', 'Mandel Hall', 'Quadrangle Club', 'Rockefeller Memorial Chapel',
+    'Institute for the Study of Ancient Cultures Museum', 'Ida Noyes Hall', 'International House', 'Burton-Judson Courts', 'Saieh Hall for Economics',
+    'Bartlett Dining Commons', 'Billings'],
+  prairie: ['Frederick C. Robie House'],
+  modern: ['Joseph Regenstein Library', 'Laird Bell Law Quadrangle', 'Crown Family School of Social Work, Policy, and Practice', 'David and Alfred Smart Museum of Art',
+    'Cochrane-Woods Art Center', 'Harris School of Public Policy Keller Center', 'Cummings Life Sciences Center', 'Henry Hinds Laboratory for Geophysical Sciences',
+    'Pick Hall', 'Edward H. Levi Hall', 'Court Theatre', 'John Crerar Library', 'Kersten Physics Teaching Center', 'Searle Chemical Laboratory', 'Bernard A. Mitchell Hospital'],
+  contemporary: ['Joe and Rika Mansueto Library', 'Charles M. Harper Center', 'Logan Center for the Arts', 'Rubenstein Forum', 'Campus North Residential Commons',
+    'Woodlawn Residential & Dining Commons', 'Max Palevsky Commons East', 'Max Palevsky Commons Central', 'Max Palevsky Commons West', 'Ratner Athletic Center',
+    'William Eckhardt Research Center', 'Center for Care and Discovery', 'Gordon Center for Integrative Science', 'Knapp Center for Biomedical Discovery',
+    'Renee Granville-Grossman Residential Commons', 'The Study at the University of Chicago', 'Michelson Center for Physics', "Comer Children's Hospital"],
+};
+const STYLE_BY_NAME = {};
+for (const [k, list] of Object.entries(STYLE_NAMES)) for (const n of list) STYLE_BY_NAME[n] = k;
+
+const LM = [
+  { k: 'rockefeller', names: ['Rockefeller Memorial Chapel'], zh: '洛克菲勒纪念教堂', year: '1928', arch: 'Bertram Grosvenor Goodhue；Mayers, Murray & Phillip 续建',
+    desc: '校园里最高的建筑。捐赠人约翰·D·洛克菲勒希望这座教堂成为大学建筑群中“居中且主导”的存在。塔楼高 207 英尺，内有 72 口钟组成的劳拉·斯佩尔曼·洛克菲勒纪念钟琴；模型里的塔高取 OpenStreetMap 标注的 61.2 米。{1}', notes: ['block'] },
+  { k: 'harper', names: ['Harper Memorial Library'], zh: '哈珀纪念图书馆', year: '1912', arch: 'Shepley, Rutan & Coolidge',
+    desc: '以首任校长威廉·雷尼·哈珀命名，南立面朝向中途公园大道。三楼的长阅览室拱顶高耸，是校园里最出名的自习空间。{1}', notes: ['block'] },
+  { k: 'mitchell', names: ['Mitchell Tower'], zh: '米切尔塔', year: '1908', arch: 'Shepley, Rutan & Coolidge',
+    desc: '仿牛津大学莫德林学院钟楼而建。它与相连的哈钦森食堂（仿牛津基督堂学院大厅）、曼德尔礼堂和雷诺兹俱乐部围合成学生生活的中心，塔里的钟至今由学生鸣钟社按英式转调鸣钟法敲响。{1}', notes: ['block'] },
+  { k: 'cobb', names: ['Cobb Hall'], zh: '科布楼', year: '1892', arch: 'Henry Ives Cobb',
+    desc: '校园里的第一栋建筑，1892 年 10 月大学开学时启用。科布同时制定了以封闭方院为单元的总体规划，此后四十年的学院哥特式校园都沿着这套格局生长。{1}', notes: ['block'] },
+  { k: 'cp1', poi: 'cp1', zh: '芝加哥一号堆遗址', en: 'Nuclear Energy · Chicago Pile-1', year: '1942 / 1967', arch: 'Henry Moore（雕塑）', kind: '雕塑 · 国家历史地标',
+    desc: '1942 年 12 月 2 日，恩里科·费米领导的团队在旧斯塔格体育场西看台下的壁球场里，实现了人类第一次可控、自持的核链式反应。亨利·摩尔的青铜雕塑《核能》在 25 周年当天于原址揭幕。旧体育场的位置如今是雷根斯坦图书馆。{1}', notes: ['rhodes'] },
+  { k: 'regenstein', names: ['Joseph Regenstein Library'], zh: '雷根斯坦图书馆', year: '1970', arch: 'Walter Netsch（Skidmore, Owings & Merrill）',
+    desc: '芝加哥事务所 SOM 设计的粗野主义图书馆，外墙竖向的石灰岩条纹回应南面的哥特建筑。它建在旧斯塔格体育场的原址上。{1}', notes: ['aia'] },
+  { k: 'mansueto', names: ['Joe and Rika Mansueto Library'], zh: '曼苏托图书馆', year: '2011', arch: 'Helmut Jahn',
+    desc: '椭圆形玻璃穹顶下是阅览室，地下是自动化高密度书库，可容纳约 350 万册当量的藏书，由机械系统存取。设计者赫尔穆特·扬长期在芝加哥执业。{1}', notes: ['aia'] },
+  { k: 'robie', names: ['Frederick C. Robie House'], zh: '罗比之家', year: '1909–1910', arch: 'Frank Lloyd Wright',
+    desc: '草原学派的代表作。细长的罗马砖、深远的悬挑屋檐和连续的水平窗带，把中西部平原的地平线带进了城市。2019 年作为“弗兰克·劳埃德·赖特的 20 世纪建筑”的一部分列入世界遗产。{1}', notes: ['hoffmann'] },
+  { k: 'booth', names: ['Charles M. Harper Center'], zh: '哈珀中心 · 布斯商学院', year: '2004', arch: 'Rafael Viñoly',
+    desc: '布斯商学院的主楼。北面隔 58 街是罗比之家，西面隔伍德劳恩大道是洛克菲勒教堂；中庭冬季花园高大的拱形空间呼应了周围的哥特建筑。{1}', notes: ['aia'] },
+  { k: 'isac', names: ['Institute for the Study of Ancient Cultures Museum'], zh: '古代文化研究所博物馆', year: '1931', arch: 'Mayers, Murray & Phillip',
+    desc: '詹姆斯·亨利·布雷斯特德创立的近东考古研究机构，2023 年由“东方研究所”更名。博物馆藏有出自豪尔萨巴德、重约 40 吨的亚述人首翼牛像（拉玛苏）。{1}', notes: ['block'] },
+  { k: 'midway', poi: 'midway', zh: '中途公园大道', en: 'Midway Plaisance', year: '1871 规划', arch: 'Olmsted, Vaux & Co.', kind: '公园大道',
+    desc: '奥姆斯特德与沃克斯规划的林荫带，连接西边的华盛顿公园和东边的杰克逊公园。1893 年世界哥伦布博览会期间这里是娱乐区，世界上第一座摩天轮就立在这里，英语里游乐场的“midway”一词由此而来。{1}', notes: ['larson'] },
+  { k: 'law', names: ['Laird Bell Law Quadrangle'], zh: '莱尔德·贝尔法学院方院', year: '1959', arch: 'Eero Saarinen',
+    desc: '埃罗·沙里宁设计。图书馆主楼的立面由一片片折角玻璃组成，常被比作书架上的一排书脊。它位于中途公园大道南侧，是大学战后向南扩展的起点之一。{1}', notes: ['aia'] },
+  { k: 'ssa', names: ['Crown Family School of Social Work, Policy, and Practice'], zh: '克朗家庭社会工作学院', year: '1965', arch: 'Ludwig Mies van der Rohe',
+    desc: '密斯·凡·德·罗在芝大校园里唯一的作品：钢框架、大玻璃、对称布置的通高大厅，是“第二芝加哥学派”的典型语汇。{1}', notes: ['schulze'] },
+  { k: 'logan', names: ['Logan Center for the Arts'], zh: '洛根艺术中心', year: '2012', arch: 'Tod Williams Billie Tsien Architects',
+    desc: '托德·威廉姆斯与钱以佳设计。实际建筑有一座约 170 英尺高的塔楼，是中途公园大道西段的地标；模型里暂以整体体量表示。{1}', notes: ['aia'] },
+  { k: 'fountain', poi: 'fountain', zh: '时间之泉', en: 'Fountain of Time', year: '1922', arch: 'Lorado Taft', kind: '雕塑',
+    desc: '洛拉多·塔夫特的混凝土群雕，位于中途公园大道西端。一百个人物列队走过披斗篷的“时间”面前，取意于奥斯汀·多布森的诗：时间并未流逝，流逝的是我们。', notes: [] },
+  { k: 'rubenstein', names: ['Rubenstein Forum'], zh: '鲁宾斯坦论坛', year: '2020', arch: 'Diller Scofidio + Renfro',
+    desc: '错落堆叠的玻璃体量面向中途公园大道，是大学举办会议和公共讨论的场所。', notes: [] },
+  { k: 'idanoyes', names: ['Ida Noyes Hall'], zh: '艾达·诺伊斯楼', year: '1916', arch: 'Shepley, Rutan & Coolidge',
+    desc: '最初作为女子学生会馆建造的都铎哥特式建筑，面朝中途公园大道，现为学生活动场所。{1}', notes: ['block'] },
+  { k: 'bond', names: ['Bond Chapel'], zh: '邦德礼拜堂', year: '1926', arch: 'Coolidge & Hodgdon',
+    desc: '神学院的小礼拜堂，以回廊与斯威夫特楼相连，是主方院里最安静的角落之一。{1}', notes: ['block'] },
+  { k: 'saieh', names: ['Saieh Hall for Economics'], zh: '赛耶经济学楼', year: '1928', arch: null,
+    desc: '原为芝加哥神学院的大楼，大学购入后改建为经济学系所在地。', notes: [] },
+  { k: 'ihouse', names: ['International House'], zh: '国际学舍', year: '1932', arch: 'Holabird & Root',
+    desc: '由小约翰·D·洛克菲勒资助建造的国际学生宿舍，由芝加哥本地事务所 Holabird & Root 设计。', notes: [] },
+  { k: 'maxp', names: ['Max Palevsky Commons Central', 'Max Palevsky Commons East', 'Max Palevsky Commons West'], zh: '麦克斯·帕列夫斯基住宿社区', year: '2001', arch: 'Ricardo Legorreta',
+    desc: '墨西哥建筑师里卡多·莱戈雷塔设计，鲜艳的色块与校园灰色的石灰岩形成鲜明对比。', notes: [] },
+  { k: 'ratner', names: ['Ratner Athletic Center'], zh: '拉特纳体育中心', year: '2003', arch: 'César Pelli',
+    desc: '西萨·佩里设计，用斜拉桅杆吊起屋顶，形成游泳馆和体育馆的大跨度空间。', notes: [] },
+  { k: 'campusnorth', names: ['Campus North Residential Commons'], zh: '北校区住宿社区', year: '2016', arch: 'Studio Gang',
+    desc: '芝加哥建筑师珍妮·甘的 Studio Gang 设计，几座塔楼与低层体量围合出内院。', notes: [] },
+  { k: 'woodlawn', names: ['Woodlawn Residential & Dining Commons'], zh: '伍德劳恩住宿社区', year: '2020', arch: 'Studio Gang',
+    desc: '同样出自 Studio Gang，位于中途公园大道以南，把本科生住宿带到了伍德劳恩社区。', notes: [] },
+  { k: 'ccd', names: ['Center for Care and Discovery'], zh: '医疗与发现中心', year: '2013', arch: 'Rafael Viñoly',
+    desc: '芝加哥大学医学中心的主住院楼，同样出自维诺利之手。', notes: [] },
+];
+const LMK = Object.fromEntries(LM.map((l) => [l.k, l]));
+const TYPE_ZH = { u: '大学建筑', d: '学生宿舍', h: '医院建筑', s: '学校建筑', c: '宗教建筑', a: '公寓楼', r: '住宅', g: '车库 / 停车楼', m: '商业建筑', i: '设施 / 工业建筑', t: '车站', y: '建筑' };
+const HS_ZH = { osm: 'OSM 标注', lv: '按 OSM 层数 × 3.6 m 估算', cur: '人工估算', def: '按建筑类型默认值估算' };
+
+/* ---------------- buildings ---------------- */
+const toRing = (a, q) => { const r = []; for (let k = 0; k < a.length; k += 2) r.push([a[k] / q, -a[k + 1] / q]); return r; };
+const shoelace = (r) => { let s = 0; for (let i = 0; i < r.length; i++) { const [x1, z1] = r[i], [x2, z2] = r[(i + 1) % r.length]; s += x1 * z2 - x2 * z1; } return s / 2; };
+const B = [];
+const byId = new Map();
+D.b.forEach((r, idx) => {
+  const ring = toRing(r.p, 10), holes = (r.q || []).map((h) => toRing(h, 10));
+  let cx = 0, cz = 0; for (const [x, z] of ring) { cx += x; cz += z; } cx /= ring.length; cz /= ring.length;
+  const b = { idx, id: r.i, rel: !!r.r, name: r.n || null, addr: r.a || null, h: r.z, mh: r.m || 0, t: r.t, u: !!r.u, lv: r.l || null, hs: r.s,
+    pa: r.pa || null, part: !!r.pt, ar: r.ar || null, sd: r.sd || null, ring, holes, cx, cz,
+    area: Math.abs(shoelace(ring)) - holes.reduce((s, h) => s + Math.abs(shoelace(h)), 0) };
+  b.style = STYLE_BY_NAME[b.name] || (b.u ? 'uni' : 'city');
+  B.push(b);
+  if (!b.part) byId.set(b.id, b);
+});
+const partsOf = new Map();
+for (const b of B) {
+  if (!b.pa) continue;
+  const p = byId.get(b.pa);
+  if (p) { b.u = p.u; b.style = p.style; b.name = b.name || p.name; if (!partsOf.has(p.idx)) partsOf.set(p.idx, []); partsOf.get(p.idx).push(b.idx); }
+}
+function actCat(b) {
+  if (!b.u) return null;
+  const n = b.name || '';
+  if (b.t === 'h') return 'hosp';
+  if (b.t === 'd' || /Residential|Palevsky|Snell-Hitchcock|Burton-Judson|International House|Midway Residence|Faculty Apartments/.test(n)) return 'dorm';
+  if (/Library|Crerar/.test(n)) return 'lib';
+  if (/Dining|Hutchinson/.test(n)) return 'dine';
+  if (/Athletic|Field House|Stagg|Gymnas/.test(n)) return 'gym';
+  if (/Chapel|Church/.test(n)) return 'chapel';
+  return 'acad';
+}
+for (const b of B) b.act = actCat(b);
+const ACT_ZH = { acad: '教学科研', lib: '图书馆', dine: '餐厅', dorm: '宿舍', hosp: '医院', gym: '体育', chapel: '礼拜堂' };
+const gauss = (h, mu, s) => Math.exp(-0.5 * ((h - mu) / s) ** 2);
+function occ(cat, h, weekend) {
+  let v = 0;
+  switch (cat) {
+    case 'acad': v = (0.04 + 0.86 * gauss(h, 13.2, 3.4)) * (weekend ? 0.3 : 1); break;
+    case 'lib': v = 0.06 + 0.82 * Math.max(gauss(h, 15, 3.2), 0.9 * gauss(h, 20.5, 2.6)) * (weekend ? 0.75 : 1); break;
+    case 'dine': v = 0.03 + 0.55 * gauss(h, 8.2, 0.8) + 0.9 * gauss(h, 12.4, 0.9) + 0.85 * gauss(h, 18.3, 1.0); break;
+    case 'dorm': v = 0.25 + 0.7 * (1 - gauss(h, 13, 4.2)); break;
+    case 'hosp': v = 0.62 + 0.18 * gauss(h, 11, 4); break;
+    case 'gym': v = 0.03 + 0.45 * gauss(h, 7.2, 1.1) + 0.8 * gauss(h, 18.2, 1.8); break;
+    case 'chapel': v = 0.05 + 0.35 * gauss(h, 11, 1) * (weekend ? 1.8 : 0.6); break;
+  }
+  return clamp(v, 0, 1);
+}
+
+/* ---------------- renderer & scene ---------------- */
+const canvas = $('#scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xe4eef4, 1500, 4200);
+const camera = new THREE.PerspectiveCamera(34, 1, 3, 20000);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.09;
+controls.screenSpacePanning = false;
+controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
+controls.minDistance = 50;
+controls.maxDistance = 3600;
+controls.maxPolarAngle = 1.38;
+controls.zoomToCursor = true;
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0xb9c3cc, 1.0);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 2.0);
+sun.castShadow = true;
+const SHADOW_SIZE = narrow() ? 2048 : 4096;
+sun.shadow.mapSize.set(SHADOW_SIZE, SHADOW_SIZE);
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.7;
+sun.shadow.camera.near = 10;
+sun.shadow.camera.far = 7000;
+scene.add(sun, sun.target);
+
+/* palettes: day / night, blended by sun altitude */
+const PAL = {
+  day: { sky: '#E3EEF5', ground: '#E4E9EC', park: '#D0E3D6', pitch: '#C9DFCF', wood: '#BDD5C4', midway: '#CBE3D7', water: '#A7D6EF', sand: '#E5E1D4',
+    r0: '#D0D8DE', r1: '#D7DEE3', r2: '#DCE2E6', r3: '#F2F5F7', tree: '#B3D0BD', edgeU: '#6C7B88', edgeC: '#A3AEB7', rail: '#8996A1', hemiSky: '#F4F8FB', hemiGround: '#AEB9C2' },
+  night: { sky: '#08111A', ground: '#0D1822', park: '#0F2119', pitch: '#11241C', wood: '#0D1D16', midway: '#10231B', water: '#0E2B41', sand: '#1A1D1F',
+    r0: '#1E2D3A', r1: '#19262F', r2: '#16222B', r3: '#24333F', tree: '#173129', edgeU: '#86C9EC', edgeC: '#33495B', rail: '#41566A', hemiSky: '#33507A', hemiGround: '#0A1118' },
+};
+const DUSK_SKY = new THREE.Color('#F0D2C2');
+const palC = { day: {}, night: {} };
+for (const k of Object.keys(PAL.day)) { palC.day[k] = new THREE.Color(PAL.day[k]); palC.night[k] = new THREE.Color(PAL.night[k]); }
+const mixPal = (k, t, out) => out.copy(palC.night[k]).lerp(palC.day[k], t);
+
+/* ---------------- ground ---------------- */
+const [BX0, BN0, BX1, BN1] = META.bbox;
+const groundMat = new THREE.MeshLambertMaterial({ color: PAL.day.ground });
+const groundGeo = new THREE.PlaneGeometry(BX1 - BX0 + 3000, BN1 - BN0 + 3000);
+groundGeo.rotateX(-Math.PI / 2);
+const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+groundMesh.position.set((BX0 + BX1) / 2, 0, -(BN0 + BN1) / 2);
+groundMesh.receiveShadow = true;
+scene.add(groundMesh);
+
+const landMats = {};
+const LAND_ORDER = ['park', 'wood', 'pitch', 'midway', 'sand', 'water'];
+{
+  const shapesBy = {};
+  for (const g of D.g) {
+    const pts = []; for (let k = 0; k < g.p.length; k += 2) pts.push(new THREE.Vector2(g.p[k] / 2, g.p[k + 1] / 2));
+    const shape = new THREE.Shape(pts);
+    for (const h of g.h || []) { const hp = []; for (let k = 0; k < h.length; k += 2) hp.push(new THREE.Vector2(h[k] / 2, h[k + 1] / 2)); shape.holes.push(new THREE.Path(hp)); }
+    (shapesBy[g.t] ||= []).push(shape);
+  }
+  LAND_ORDER.forEach((t, i) => {
+    if (!shapesBy[t]) return;
+    const geo = new THREE.ShapeGeometry(shapesBy[t]);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshLambertMaterial({ color: PAL.day[t], side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 - i, polygonOffsetUnits: -1 - i });
+    landMats[t] = mat;
+    const m = new THREE.Mesh(geo, mat);
+    m.position.y = 0.05 + i * 0.03;
+    m.receiveShadow = true;
+    scene.add(m);
+  });
+}
+
+/* roads as flat ribbons */
+const roadMats = [];
+{
+  const W = [15, 9.5, 4.5, 2.2];
+  const buf = [[], [], [], []];
+  for (const r of D.r) {
+    const pts = []; for (let k = 0; k < r.p.length; k += 2) pts.push([r.p[k] / 2, -r.p[k + 1] / 2]);
+    const out = buf[r.c], hw = W[r.c] / 2, n = pts.length;
+    const L = [], R = [];
+    for (let i = 0; i < n; i++) {
+      let nx = 0, nz = 0, d1 = null, d2 = null;
+      if (i > 0) { const dx = pts[i][0] - pts[i - 1][0], dz = pts[i][1] - pts[i - 1][1], l = Math.hypot(dx, dz) || 1; d1 = [dx / l, dz / l]; nx += -d1[1]; nz += d1[0]; }
+      if (i < n - 1) { const dx = pts[i + 1][0] - pts[i][0], dz = pts[i + 1][1] - pts[i][1], l = Math.hypot(dx, dz) || 1; d2 = [dx / l, dz / l]; nx += -d2[1]; nz += d2[0]; }
+      const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
+      let s = 1; if (d1 && d2) s = 1 / Math.max(0.5, nx * -d2[1] + nz * d2[0]);
+      L.push([pts[i][0] + nx * hw * s, pts[i][1] + nz * hw * s]); R.push([pts[i][0] - nx * hw * s, pts[i][1] - nz * hw * s]);
+    }
+    for (let i = 0; i < n - 1; i++) out.push(L[i][0], 0, L[i][1], R[i][0], 0, R[i][1], R[i + 1][0], 0, R[i + 1][1], L[i][0], 0, L[i][1], R[i + 1][0], 0, R[i + 1][1], L[i + 1][0], 0, L[i + 1][1]);
+  }
+  buf.forEach((arr, c) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+    const nor = new Float32Array(arr.length); for (let i = 1; i < nor.length; i += 3) nor[i] = 1;
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    const mat = new THREE.MeshLambertMaterial({ color: PAL.day['r' + c], side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -8 - c, polygonOffsetUnits: -8 - c });
+    roadMats[c] = mat;
+    const m = new THREE.Mesh(geo, mat);
+    m.position.y = 0.25 + c * 0.03;
+    m.receiveShadow = true;
+    scene.add(m);
+  });
+}
+/* railways */
+const railMat = new THREE.LineDashedMaterial({ color: PAL.day.rail, dashSize: 6, gapSize: 4 });
+{
+  const arr = [];
+  for (const r of D.rail) for (let k = 0; k + 3 < r.length; k += 2) arr.push(r[k] / 2, 0.6, -r[k + 1] / 2, r[k + 2] / 2, 0.6, -r[k + 3] / 2);
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+  const lines = new THREE.LineSegments(geo, railMat); lines.computeLineDistances(); scene.add(lines);
+}
+
+/* ---------------- building geometry (two merged meshes: campus / neighbourhood) ---------------- */
+const groups = [{ pos: [], nor: [], edge: [] }, { pos: [], nor: [], edge: [] }];
+for (const b of B) {
+  const g = groups[b.u ? 0 : 1]; b.g = b.u ? 0 : 1;
+  const pos = g.pos, nor = g.nor, ed = g.edge;
+  b.start = pos.length / 3;
+  const y0 = b.mh, y1 = Math.max(b.h, b.mh + 1);
+  const sgn = shoelace(b.ring) > 0 ? 1 : -1;
+  let minx = Infinity, maxx = -Infinity, minz = Infinity, maxz = -Infinity;
+  for (const ring of [b.ring, ...b.holes]) {
+    const n = ring.length;
+    for (let k = 0; k < n; k++) {
+      const [x1, z1] = ring[k], [x2, z2] = ring[(k + 1) % n], [x0, z0] = ring[(k - 1 + n) % n];
+      minx = Math.min(minx, x1); maxx = Math.max(maxx, x1); minz = Math.min(minz, z1); maxz = Math.max(maxz, z1);
+      const dx = x2 - x1, dz = z2 - z1, L = Math.hypot(dx, dz) || 1, nx = sgn * dz / L, nz = -sgn * dx / L;
+      if (sgn < 0) pos.push(x1, y0, z1, x2, y0, z2, x2, y1, z2, x1, y0, z1, x2, y1, z2, x1, y1, z1);
+      else pos.push(x1, y0, z1, x2, y1, z2, x2, y0, z2, x1, y0, z1, x1, y1, z1, x2, y1, z2);
+      for (let v = 0; v < 6; v++) nor.push(nx, 0, nz);
+      ed.push(x1, y1, z1, x2, y1, z2);
+      const ax = x1 - x0, az = z1 - z0, la = Math.hypot(ax, az) || 1;
+      if ((ax * dx + az * dz) / (la * L) < 0.94) ed.push(x1, y0, z1, x1, y1, z1);
+    }
+  }
+  const all = [...b.ring, ...b.holes.flat()];
+  let tris = [];
+  try { tris = THREE.ShapeUtils.triangulateShape(b.ring.map(([x, z]) => new THREE.Vector2(x, z)), b.holes.map((h) => h.map(([x, z]) => new THREE.Vector2(x, z)))); } catch (e) { tris = []; }
+  for (const [ia, ib, ic] of tris) {
+    const A = all[ia], Bp = all[ib], C = all[ic];
+    if (!A || !Bp || !C) continue;
+    const ny = (Bp[1] - A[1]) * (C[0] - A[0]) - (Bp[0] - A[0]) * (C[1] - A[1]);
+    if (ny >= 0) pos.push(A[0], y1, A[1], Bp[0], y1, Bp[1], C[0], y1, C[1]);
+    else pos.push(A[0], y1, A[1], C[0], y1, C[1], Bp[0], y1, Bp[1]);
+    nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
+  }
+  b.count = pos.length / 3 - b.start;
+  b.top = y1;
+  b.box = new THREE.Box3(new THREE.Vector3(minx, y0, minz), new THREE.Vector3(maxx, y1, maxz));
+}
+const bMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+const glowU = { value: 0 };
+bMat.onBeforeCompile = (sh) => {
+  sh.uniforms.uGlow = glowU;
+  sh.fragmentShader = 'uniform float uGlow;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += vColor.rgb * uGlow;');
+};
+const edgeMats = [new THREE.LineBasicMaterial({ color: PAL.day.edgeU, transparent: true, opacity: 0.55 }), new THREE.LineBasicMaterial({ color: PAL.day.edgeC, transparent: true, opacity: 0.45 })];
+groups.forEach((g, i) => {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(g.pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(g.nor, 3));
+  g.colorAttr = new THREE.BufferAttribute(new Float32Array(g.pos.length), 3);
+  geo.setAttribute('color', g.colorAttr);
+  g.posArr = geo.attributes.position.array;
+  g.mesh = new THREE.Mesh(geo, bMat);
+  g.mesh.castShadow = true; g.mesh.receiveShadow = true;
+  scene.add(g.mesh);
+  const eg = new THREE.BufferGeometry(); eg.setAttribute('position', new THREE.Float32BufferAttribute(g.edge, 3));
+  g.lines = new THREE.LineSegments(eg, edgeMats[i]);
+  scene.add(g.lines);
+  g.pos = g.nor = g.edge = null;
+});
+
+/* trees */
+const treeMat = new THREE.MeshLambertMaterial({ color: PAL.day.tree, flatShading: true });
+const nTrees = D.trees.length / 2;
+const trees = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), treeMat, nTrees);
+{
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+  for (let i = 0; i < nTrees; i++) {
+    const rnd = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1, r = 3.1 + rnd * 1.8;
+    p.set(D.trees[i * 2] / 2, 4.2 + r, -D.trees[i * 2 + 1] / 2); s.set(r, r * 1.12, r);
+    trees.setMatrixAt(i, m.compose(p, q, s));
+  }
+  trees.castShadow = true; trees.receiveShadow = true;
+  scene.add(trees);
+}
+
+/* ---------------- landmarks ---------------- */
+const poiXY = { midway: [-150, -405] };
+for (const p of D.poi) poiXY[p.k] = [p.x, p.y];
+const stemArr = [];
+for (const lm of LM) {
+  if (lm.poi) {
+    const [x, n] = poiXY[lm.poi];
+    lm.anchor = new THREE.Vector3(x, lm.poi === 'midway' ? 24 : 16, -n);
+    lm.focus = new THREE.Vector3(x, 0, -n); lm.radius = lm.poi === 'midway' ? 260 : 30; lm.topH = 8;
+    stemArr.push(x, 0, -n, x, lm.anchor.y - 2, -n);
+    continue;
+  }
+  const hits = B.filter((b) => !b.part && lm.names.includes(b.name));
+  if (!hits.length) { lm.missing = true; continue; }
+  const main = hits.reduce((a, b) => (b.area > a.area ? b : a));
+  lm.idx = []; for (const h of hits) { lm.idx.push(h.idx, ...(partsOf.get(h.idx) || [])); }
+  for (const i of lm.idx) B[i].lm = lm.k;
+  lm.main = main.idx;
+  lm.topH = Math.max(...lm.idx.map((i) => B[i].top));
+  lm.radius = Math.max(main.box.max.x - main.box.min.x, main.box.max.z - main.box.min.z) / 2;
+  lm.anchor = new THREE.Vector3(main.cx, lm.topH + 16, main.cz);
+  lm.focus = new THREE.Vector3(main.cx, Math.min(lm.topH, 40) * 0.35, main.cz);
+  stemArr.push(main.cx, lm.topH, main.cz, main.cx, lm.anchor.y - 2, main.cz);
+}
+const LMV = LM.filter((l) => !l.missing);
+const stemGeo = new THREE.BufferGeometry(); stemGeo.setAttribute('position', new THREE.Float32BufferAttribute(stemArr, 3));
+const stems = new THREE.LineSegments(stemGeo, new THREE.LineBasicMaterial({ color: 0xe1172d, transparent: true, opacity: 0.85 }));
+scene.add(stems);
+
+/* ---------------- colouring ---------------- */
+let lastActMin = -99;
+const state = { mode: 'model', sel: null, hover: null, min: 720, date: null, live: true, playing: false, weekend: false, day: 1 };
+const C = (h) => new THREE.Color(h);
+const COL = { uni: C('#FFFFFF'), city: C('#D5DBE0'), cityDim: C('#E3E7EA') };
+const STYLE_C = Object.fromEntries(Object.entries(STYLE).map(([k, v]) => [k, C(v.col)]));
+const HEIGHT_STOPS = [[0, C('#EAF4FA')], [12, C('#B3DDF2')], [25, C('#6CB0DA')], [40, C('#2F79AE')], [62, C('#163C63')]];
+const ACT_STOPS = [[0, C('#EEF1F3')], [0.35, C('#F6C4CA')], [0.7, C('#EC6676')], [1, C('#C1122B')]];
+function ramp(stops, v, out) {
+  if (v <= stops[0][0]) return out.copy(stops[0][1]);
+  for (let i = 1; i < stops.length; i++) if (v <= stops[i][0]) return out.copy(stops[i - 1][1]).lerp(stops[i][1], (v - stops[i - 1][0]) / (stops[i][0] - stops[i - 1][0]));
+  return out.copy(stops[stops.length - 1][1]);
+}
+const tmpC = new THREE.Color();
+function colorFor(b, out) {
+  switch (state.mode) {
+    case 'style': return out.copy(STYLE_C[b.style]);
+    case 'height': return ramp(HEIGHT_STOPS, b.top, out);
+    case 'activity': return b.u ? ramp(ACT_STOPS, occ(b.act, state.min / 60, state.weekend), out) : out.copy(COL.cityDim);
+    default: return out.copy(b.u ? COL.uni : COL.city);
+  }
+}
+function paint() {
+  for (const b of B) {
+    colorFor(b, tmpC);
+    const a = groups[b.g].colorAttr.array;
+    for (let v = b.start, e = b.start + b.count; v < e; v++) { a[v * 3] = tmpC.r; a[v * 3 + 1] = tmpC.g; a[v * 3 + 2] = tmpC.b; }
+  }
+  groups.forEach((g) => { g.colorAttr.needsUpdate = true; });
+  dirty = true;
+}
+
+/* highlight meshes for selection / hover */
+function makeHL(color, emissive) {
+  const m = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshLambertMaterial({ color, emissive, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 }));
+  m.renderOrder = 2; m.visible = false; m.castShadow = false; scene.add(m); return m;
+}
+const selMesh = makeHL('#8C1D2B', '#2A0006');
+const hovMesh = makeHL('#8CCBEA', '#0B2333');
+function setHL(mesh, idxs) {
+  if (!idxs || !idxs.length) { mesh.visible = false; return; }
+  let n = 0; for (const i of idxs) n += B[i].count;
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3);
+  let o = 0;
+  for (const i of idxs) {
+    const b = B[i], g = groups[b.g];
+    pos.set(g.posArr.subarray(b.start * 3, (b.start + b.count) * 3), o);
+    nor.set(g.mesh.geometry.attributes.normal.array.subarray(b.start * 3, (b.start + b.count) * 3), o);
+    o += b.count * 3;
+  }
+  mesh.geometry.dispose();
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  mesh.geometry = geo; mesh.visible = true; dirty = true;
+}
+const groupOf = (idx) => { const b = B[idx]; const root = b.pa && byId.get(b.pa) ? byId.get(b.pa).idx : idx; return [root, ...(partsOf.get(root) || [])]; };
+
+/* ---------------- sun & time ---------------- */
+const TZ = 'America/Chicago';
+const dtf = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+function chiParts(ms) { const o = {}; for (const p of dtf.formatToParts(new Date(ms))) o[p.type] = p.value; return { y: +o.year, mo: +o.month, d: +o.day, h: (+o.hour) % 24, mi: +o.minute, s: +o.second }; }
+function tzOff(ms) { const p = chiParts(ms); return Math.round((Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi, p.s) - ms) / 60000); }
+function chiToUTC(y, mo, d, minutes) { const g = Date.UTC(y, mo - 1, d, 0, minutes); let u = g - tzOff(g + 300 * 60000) * 60000; u = g - tzOff(u) * 60000; return u; }
+const LATC = 41.7897, LONC = -87.5997;
+function sunPos(ms) {
+  const n = ms / 86400000 + 2440587.5 - 2451545.0;
+  const L = (280.460 + 0.9856474 * n) % 360, g = ((357.528 + 0.9856003 * n) % 360) * DEG;
+  const lam = (L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * DEG, eps = (23.439 - 0.0000004 * n) * DEG;
+  const ra = Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)), dec = Math.asin(Math.sin(eps) * Math.sin(lam));
+  const gmst = ((18.697374558 + 24.06570982441908 * n) % 24 + 24) % 24;
+  const ha = (gmst * 15 + LONC) * DEG - ra, phi = LATC * DEG;
+  const alt = Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(ha));
+  let az = Math.atan2(-Math.sin(ha), Math.tan(dec) * Math.cos(phi) - Math.sin(phi) * Math.cos(ha));
+  az = (az + 2 * Math.PI) % (2 * Math.PI);
+  return { alt, az };
+}
+const pad = (n) => String(n).padStart(2, '0');
+const hhmm = (m) => `${pad(Math.floor(m / 60) % 24)}:${pad(Math.round(m % 60) % 60)}`;
+const COMPASS_ZH = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
+let dayInfo = null;
+function computeDay() {
+  const { y, mo, d } = state.date;
+  const alts = [];
+  for (let m = 0; m <= 1440; m += 5) alts.push(sunPos(chiToUTC(y, mo, d, m)).alt / DEG);
+  const H = -0.833; let rise = null, set = null;
+  for (let i = 1; i < alts.length; i++) {
+    if (alts[i - 1] < H && alts[i] >= H && rise === null) rise = (i - 1 + (H - alts[i - 1]) / (alts[i] - alts[i - 1])) * 5;
+    if (alts[i - 1] >= H && alts[i] < H) set = (i - 1 + (H - alts[i - 1]) / (alts[i] - alts[i - 1])) * 5;
+  }
+  const stops = [];
+  const colAt = (a) => a < -12 ? '#16222E' : a < -6 ? '#2B4157' : a < -0.8 ? '#5B7C9C' : a < 6 ? '#EDBBA8' : a < 15 ? '#CDE6F4' : '#A9D8F0';
+  for (let i = 0; i < alts.length; i += 3) stops.push(`${colAt(alts[i])} ${(i * 5 / 1440 * 100).toFixed(1)}%`);
+  $('#tod').style.setProperty('--track', `linear-gradient(90deg, ${stops.join(',')})`);
+  state.weekend = [0, 6].includes(new Date(Date.UTC(y, mo - 1, d)).getUTCDay());
+  dayInfo = { rise, set };
+}
+const sunDir = new THREE.Vector3(0, 1, 0);
+let curSun = { alt: 1, az: Math.PI };
+function applyTime() {
+  const { y, mo, d } = state.date;
+  const utc = chiToUTC(y, mo, d, state.min);
+  const sp = sunPos(utc); curSun = sp;
+  const off = tzOff(utc);
+  $('#clk').textContent = hhmm(state.min);
+  $('#tzab').textContent = off === -300 ? 'CDT' : off === -360 ? 'CST' : `UTC${off / 60}`;
+  $('#tod').value = Math.round(state.min);
+  const altD = sp.alt / DEG, azD = sp.az / DEG;
+  const dir = COMPASS_ZH[Math.round(azD / 45) % 8];
+  const rs = dayInfo && dayInfo.rise != null ? `日出 ${hhmm(dayInfo.rise)} · 日落 ${hhmm(dayInfo.set)}` : '';
+  $('#sunInfo').textContent = `${rs} · 太阳高度 ${altD.toFixed(1)}° · 方位 ${azD.toFixed(0)}°${altD > -0.8 ? ' ' + dir : '（夜间）'}`;
+  /* lighting */
+  const s = Math.sin(sp.alt);
+  const day = smooth(-0.12, 0.2, s);
+  const dusk = Math.max(0, 1 - Math.abs(altD - 2) / 9);
+  const sky = mixPal('sky', day, new THREE.Color()).lerp(DUSK_SKY, dusk * 0.6);
+  scene.background = sky; scene.fog.color.copy(sky);
+  hemi.color.copy(mixPal('hemiSky', day, new THREE.Color())); hemi.groundColor.copy(mixPal('hemiGround', day, new THREE.Color()));
+  hemi.intensity = 0.8 + 1.7 * day;
+  if (altD > -1.5) {
+    sunDir.set(Math.sin(sp.az) * Math.cos(sp.alt), Math.max(Math.sin(sp.alt), 0.035), -Math.cos(sp.az) * Math.cos(sp.alt)).normalize();
+    sun.intensity = 3.3 * smooth(-0.02, 0.3, s) + 0.08;
+    sun.color.set('#FFB27A').lerp(new THREE.Color('#FFF8F0'), smooth(0.02, 0.45, s));
+  } else {
+    const maz = 200 * DEG, malt = 38 * DEG;
+    sunDir.set(Math.sin(maz) * Math.cos(malt), Math.sin(malt), -Math.cos(maz) * Math.cos(malt)).normalize();
+    sun.intensity = 0.8; sun.color.set('#9DB8DD');
+  }
+  const nightMul = state.mode === 'model' ? '#3A4958' : '#7A8794';
+  bMat.color.set(nightMul).lerp(new THREE.Color('#F2F5F7'), day);
+  glowU.value = (state.mode === 'model' ? 0.1 : 0.34) * (1 - day);
+  groundMat.color.copy(mixPal('ground', day, new THREE.Color()));
+  for (const t of LAND_ORDER) if (landMats[t]) landMats[t].color.copy(mixPal(t, day, new THREE.Color()));
+  roadMats.forEach((m, c) => m.color.copy(mixPal('r' + c, day, new THREE.Color())));
+  treeMat.color.copy(mixPal('tree', day, new THREE.Color()));
+  railMat.color.copy(mixPal('rail', day, new THREE.Color()));
+  edgeMats[0].color.copy(mixPal('edgeU', day, new THREE.Color())); edgeMats[0].opacity = 0.5 + 0.25 * (1 - day);
+  edgeMats[1].color.copy(mixPal('edgeC', day, new THREE.Color()));
+  selMesh.material.emissive.set('#2A0006').lerp(new THREE.Color('#7A1020'), 1 - day);
+  hovMesh.material.emissive.set('#0B2333').lerp(new THREE.Color('#2E6E94'), 1 - day);
+  state.day = day;
+  updateSunRig();
+  if (state.mode === 'activity' && (!state.playing || Math.abs(state.min - lastActMin) >= 4)) { lastActMin = state.min; paint(); renderLegend(); if (state.sel) renderInfo(); }
+  dirty = true;
+}
+function updateSunRig() {
+  const T = controls.target, dist = camera.position.distanceTo(T);
+  const ext = clamp(dist * 0.95, 260, 1900);
+  sun.position.copy(T).addScaledVector(sunDir, 3200); sun.target.position.copy(T);
+  const sc = sun.shadow.camera; sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.updateProjectionMatrix();
+  scene.fog.near = dist * 1.25 + 300; scene.fog.far = dist * 3.4 + 1400;
+}
+function nowChicago() { const p = chiParts(Date.now()); return { date: { y: p.y, mo: p.mo, d: p.d }, min: p.h * 60 + p.mi + p.s / 60 }; }
+function syncLive() {
+  const n = nowChicago();
+  const changed = !state.date || n.date.y !== state.date.y || n.date.mo !== state.date.mo || n.date.d !== state.date.d;
+  state.date = n.date; state.min = n.min;
+  $('#date').value = `${n.date.y}-${pad(n.date.mo)}-${pad(n.date.d)}`;
+  if (changed) computeDay();
+  applyTime();
+}
+function setLive(on) { state.live = on; $('#liveBtn').setAttribute('aria-pressed', on ? 'true' : 'false'); if (on) { setPlaying(false); syncLive(); } }
+function setPlaying(on) {
+  state.playing = on;
+  $('#playIcon').innerHTML = on ? '<path d="M2 1H5V11H2ZM7 1H10V11H7Z"/>' : '<path d="M2 1L11 6L2 11Z"/>';
+  $('#playBtn').setAttribute('aria-label', on ? '暂停' : '播放一天的日照变化');
+  if (on) { state.live = false; $('#liveBtn').setAttribute('aria-pressed', 'false'); }
+}
+
+/* ---------------- overlay: landmark pins & Chicago street signs ---------------- */
+const overlay = $('#overlay');
+const pinEls = LMV.map((lm) => {
+  const el = document.createElement('button');
+  el.className = 'pin'; el.type = 'button';
+  el.innerHTML = `<svg viewBox="0 0 20 20" aria-hidden="true"><use href="#star6"/></svg><span>${esc(lm.zh)}</span>`;
+  el.setAttribute('aria-label', lm.zh);
+  el.addEventListener('click', (e) => { e.stopPropagation(); selectLandmark(lm.k, true); });
+  overlay.appendChild(el); el._w = 0; return { el, lm };
+});
+const signEls = D.labels.map((l) => {
+  const el = document.createElement('div');
+  el.className = 'sign';
+  const g = D.labelKnown[l.n];
+  el.innerHTML = `${esc(l.n.replace(/ Avenue$| Ave$/, ' Av'))}${g ? `<b>${g} ${l.o === 'ns' ? 'E' : 'S'}</b>` : ''}`;
+  overlay.appendChild(el);
+  return { el, p: new THREE.Vector3(l.x, 1, -l.y) };
+});
+const vtmp = new THREE.Vector3();
+function project(p) { vtmp.copy(p).project(camera); return { x: (vtmp.x + 1) / 2 * W, y: (1 - vtmp.y) / 2 * H, ok: vtmp.z < 1 && vtmp.z > -1 }; }
+function updateOverlay() {
+  const rects = [];
+  const overlaps = (r) => rects.some((q) => r.x < q.x + q.w && r.x + r.w > q.x && r.y < q.y + q.h && r.y + r.h > q.y);
+  const showPins = $('#tStars').checked;
+  for (const { el, lm } of pinEls) {
+    const p = project(lm.anchor);
+    if (!showPins || !p.ok || p.x < -40 || p.x > W + 40 || p.y < -20 || p.y > H + 20) { el.hidden = true; continue; }
+    el.hidden = false;
+    el.style.transform = `translate(${(p.x - 9).toFixed(1)}px, ${(p.y - 9).toFixed(1)}px)`;
+    const isSel = state.sel && state.sel.k === lm.k;
+    el.classList.toggle('sel', !!isSel);
+    if (!el._w) { el.classList.remove('compact'); el._w = el.offsetWidth || 120; }
+    const r = { x: p.x - 9, y: p.y - 11, w: el._w, h: 22 };
+    if (!isSel && overlaps(r)) { el.classList.add('compact'); rects.push({ x: p.x - 9, y: p.y - 9, w: 18, h: 18 }); }
+    else { el.classList.remove('compact'); rects.push(r); }
+  }
+  const dist = camera.position.distanceTo(controls.target);
+  const showSigns = $('#tSigns').checked && dist < 2600;
+  for (const s of signEls) {
+    const p = project(s.p);
+    if (!showSigns || !p.ok || p.x < 0 || p.x > W || p.y < 0 || p.y > H) { s.el.hidden = true; continue; }
+    if (!s.w) { s.el.hidden = false; s.w = s.el.offsetWidth || 90; }
+    const r = { x: p.x - s.w / 2, y: p.y - 9, w: s.w, h: 18 };
+    if (overlaps(r)) { s.el.hidden = true; continue; }
+    s.el.hidden = false; rects.push(r);
+    s.el.style.transform = `translate(${r.x.toFixed(1)}px, ${r.y.toFixed(1)}px)`;
+  }
+  /* compass & scale */
+  const off = camera.position.clone().sub(controls.target);
+  const az = Math.atan2(off.x, -off.z) / DEG;
+  $('#needle').setAttribute('transform', `rotate(${(180 - az).toFixed(1)})`);
+  const mpp = (2 * dist * Math.tan(camera.fov * DEG / 2)) / H;
+  const nice = [10, 20, 50, 100, 200, 500, 1000, 2000].find((v) => v / mpp >= 56) || 2000;
+  $('#scaleBar').style.width = `${Math.min(150, nice / mpp).toFixed(0)}px`;
+  const blocks = nice / 201.2;
+  $('#scaleLbl').textContent = `${nice} m ≈ ${blocks < 1 ? blocks.toFixed(2) : blocks.toFixed(1)} 街区`;
+}
+
+/* ---------------- picking ---------------- */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vCc = new THREE.Vector3(), hitP = new THREE.Vector3(), boxP = new THREE.Vector3();
+function pick(cx, cy) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const ray = raycaster.ray, cand = [];
+  const cityOn = groups[1].mesh.visible;
+  for (const b of B) { if (b.g === 1 && !cityOn) continue; if (ray.intersectBox(b.box, boxP)) cand.push([boxP.distanceToSquared(ray.origin), b]); }
+  cand.sort((a, b) => a[0] - b[0]);
+  let best = null, bestD = Infinity;
+  for (const [d2, b] of cand) {
+    if (d2 > bestD * bestD) break;
+    const arr = groups[b.g].posArr;
+    for (let v = b.start; v < b.start + b.count; v += 3) {
+      vA.fromArray(arr, v * 3); vB.fromArray(arr, v * 3 + 3); vCc.fromArray(arr, v * 3 + 6);
+      if (ray.intersectTriangle(vA, vB, vCc, false, hitP)) { const d = hitP.distanceTo(ray.origin); if (d < bestD) { bestD = d; best = b; } }
+    }
+  }
+  const t = -ray.origin.y / ray.direction.y;
+  const ground = t > 0 ? ray.origin.clone().addScaledVector(ray.direction, t) : null;
+  return { b: best, ground };
+}
+
+/* ---------------- info panel ---------------- */
+const info = $('#info');
+function factRows(rows) { return `<dl class="facts">${rows.filter((r) => r && r[1] != null && r[1] !== '').map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`; }
+function stylePill(style) { const s = STYLE[style]; return s ? `<span class="pill"><i style="background:${s.col}"></i>${s.zh}</span>` : ''; }
+const lmPill = '<span class="pill lm"><svg viewBox="0 0 20 20"><use href="#star6"/></svg>地标</span>';
+function withNotes(lm, notes) {
+  if (!lm) return '';
+  return lm.desc.replace(/\{(\d)\}/g, (m, i) => { notes.push('See ' + SRC[lm.notes[+i - 1]][0]); return `<sup>${notes.length}</sup>`; });
+}
+function signHTML(addr) {
+  if (!addr) return '';
+  const m = addr.match(/^(\S+)\s+(.*)$/);
+  return m ? `<div class="street-sign"><b>${esc(m[1])}</b>${esc(m[2])}</div>` : `<div class="street-sign">${esc(addr)}</div>`;
+}
+function renderInfo() {
+  const sel = state.sel; if (!sel) return;
+  const notes = [];
+  let html = '';
+  const expandBtn = `<button class="ghost-btn sheet-btn" id="sheetBtn">${info.classList.contains('expanded') ? '收起' : '展开'}</button>`;
+  if (sel.k && LMK[sel.k].poi) {
+    const lm = LMK[sel.k];
+    const desc = withNotes(lm, notes);
+    html = `<div class="info-top">${lmPill}<span class="pill">${esc(lm.kind)}</span>${expandBtn}</div>
+      <h2>${esc(lm.en)}</h2><div class="zh">${esc(lm.zh)}</div>
+      ${factRows([['芝加哥网格', `<span class="mono">≈ ${gridLabel(lm.focus.x, lm.focus.z)}</span>`], ['年代', esc(lm.year)], [lm.poi === 'midway' ? '规划' : '作者', esc(lm.arch)],
+        ['坐标', `<span class="mono">${(LAT0 - lm.focus.z / META.kn).toFixed(5)}°N, ${Math.abs(LON0 + lm.focus.x / META.kx).toFixed(5)}°W</span>`]])}
+      <p class="desc">${desc}</p>`;
+  } else {
+    const b = B[sel.idx];
+    const lm = b.lm ? LMK[b.lm] : null;
+    const grp = groupOf(b.idx);
+    const top = Math.max(...grp.map((i) => B[i].top));
+    const area = grp.filter((i) => !B[i].part).reduce((s, i) => s + B[i].area, 0);
+    const desc = lm ? withNotes(lm, notes)
+      : `${TYPE_ZH[b.t] || '建筑'}，${b.u ? '属芝加哥大学校园' : '位于校园周边的海德公园 / 伍德劳恩社区'}。`;
+    notes.push(osmNote(b));
+    const hsrc = grp.some((i) => B[i].hs === 'osm') ? 'osm' : b.hs;
+    const occRow = state.mode === 'activity' && b.u ? (() => { const o = occ(b.act, state.min / 60, state.weekend); return `<div class="occ">此刻占用率（模拟 · ${ACT_ZH[b.act]}）<b class="mono"> ${Math.round(o * 100)}%</b><div class="bar"><i style="width:${(o * 100).toFixed(0)}%"></i></div></div>`; })() : '';
+    html = `<div class="info-top">${lm ? lmPill : ''}${stylePill(b.style)}${expandBtn}</div>
+      <h2>${esc(b.name || '未命名建筑')}</h2>${lm ? `<div class="zh">${esc(lm.zh)}</div>` : `<div class="zh">${esc(TYPE_ZH[b.t] || '建筑')}</div>`}
+      ${signHTML(b.addr)}
+      ${factRows([
+        ['芝加哥网格', `<span class="mono">≈ ${gridLabel(b.cx, b.cz)}</span>`],
+        ['高度', `<span class="mono">${top.toFixed(1)} m</span> <span class="src">${HS_ZH[hsrc]}</span>`],
+        ['层数', b.lv ? `<span class="mono">${b.lv}</span>` : null],
+        ['占地', `<span class="mono">${fmt(area)} m²</span>`],
+        ['建成', esc(lm ? lm.year : b.sd)],
+        ['建筑师', esc(lm ? lm.arch : b.ar)],
+        ['归属', b.u ? '芝加哥大学' : '周边社区'],
+      ])}
+      ${occRow}
+      <p class="desc">${desc}</p>
+      <p class="desc notes-intro" style="font-size:12px;color:var(--muted)">建筑轮廓、名称与地址来自 OpenStreetMap。<sup>${notes.length}</sup></p>`;
+  }
+  html += notes.length ? `<ol class="notes">${notes.map((n) => `<li>${n}</li>`).join('')}</ol>` : '';
+  info.innerHTML = `<div class="info-scroll">${html}</div>`;
+  const sb = $('#sheetBtn');
+  if (sb) sb.addEventListener('click', () => { info.classList.toggle('expanded'); sb.textContent = info.classList.contains('expanded') ? '收起' : '展开'; });
+  for (const btn of document.querySelectorAll('#lmList button')) btn.setAttribute('aria-current', state.sel && state.sel.k === btn.dataset.k ? 'true' : 'false');
+  dirty = true;
+}
+
+/* ---------------- selection & camera ---------------- */
+function selectBuilding(idx) {
+  const b = B[idx];
+  const root = groupOf(idx);
+  const k = B[root[0]].lm || null;
+  state.sel = { idx: root[0], k };
+  setHL(selMesh, root);
+  renderInfo();
+}
+function selectLandmark(k, fly) {
+  const lm = LMK[k];
+  if (lm.poi) { state.sel = { k }; setHL(selMesh, null); renderInfo(); }
+  else { state.sel = { idx: lm.main, k }; setHL(selMesh, lm.idx); renderInfo(); }
+  if (fly) flyToLandmark(lm);
+}
+let flight = null;
+function flyTo(target, pos) {
+  if (reduceMotion) { controls.target.copy(target); camera.position.copy(pos); flight = null; dirty = true; return; }
+  flight = { t0: performance.now(), dur: 1200, fT: controls.target.clone(), fP: camera.position.clone(), tT: target.clone(), tP: pos.clone() };
+}
+function camPos(target, dist, azDeg, polarDeg) {
+  const az = azDeg * DEG, po = polarDeg * DEG;
+  return new THREE.Vector3(target.x + Math.sin(po) * Math.sin(az) * dist, target.y + Math.cos(po) * dist, target.z - Math.sin(po) * Math.cos(az) * dist);
+}
+function currentAz() { const o = camera.position.clone().sub(controls.target); return Math.atan2(o.x, -o.z) / DEG; }
+function flyToLandmark(lm) {
+  const dist = clamp(lm.radius * 3.4 + lm.topH * 2.4, 270, lm.poi === 'midway' ? 1100 : 620);
+  flyTo(lm.focus, camPos(lm.focus, dist, currentAz(), 56));
+}
+const VIEWS = [
+  { zh: '全景', t: [60, -60], d: 2700, az: 155, po: 48 },
+  { zh: '主方院', t: [-205, -105], d: 760, az: 150, po: 54 },
+  { zh: '中途公园大道', t: [-170, -410], d: 1050, az: 95, po: 63 },
+  { zh: '医学园区', t: [-560, -20], d: 800, az: 215, po: 52 },
+  { zh: '北校区', t: [-200, 300], d: 760, az: 165, po: 52 },
+  { zh: '南校区', t: [-120, -620], d: 780, az: 180, po: 52 },
+];
+
+/* ---------------- legend ---------------- */
+const counts = {};
+for (const b of B) if (!b.part) counts[b.style] = (counts[b.style] || 0) + 1;
+function renderLegend() {
+  const el = $('#legend');
+  if (state.mode === 'model') {
+    el.innerHTML = '白色是芝大建筑，浅灰是周边社区，红星标出地标。点选任意建筑查看资料。';
+  } else if (state.mode === 'style') {
+    el.innerHTML = `<div class="rows">${['gothic', 'prairie', 'modern', 'contemporary', 'uni', 'city'].map((k) => `<i class="sw" style="background:${STYLE[k].col}"></i><span>${STYLE[k].zh}</span><span class="n">${counts[k] || 0}</span>`).join('')}</div>
+      <div style="margin-top:6px">只给核实过风格的建筑着色，其余显示为未分类。</div>`;
+  } else if (state.mode === 'height') {
+    const g = HEIGHT_STOPS.map(([v, c]) => `#${c.getHexString()} ${(v / 62 * 100).toFixed(0)}%`).join(',');
+    el.innerHTML = `<div class="ramp" style="background:linear-gradient(90deg,${g})"></div><div class="ticks"><span>0</span><span>15</span><span>30</span><span>45</span><span>60+ m</span></div>
+      <div style="margin-top:6px">只有 2 栋建筑在 OSM 中标了实测高度，多数按层数估算。</div>`;
+  } else {
+    const g = ACT_STOPS.map(([v, c]) => `#${c.getHexString()} ${(v * 100).toFixed(0)}%`).join(',');
+    const h = state.min / 60;
+    const avg = (cat) => Math.round(occ(cat, h, state.weekend) * 100);
+    el.innerHTML = `<div class="ramp" style="background:linear-gradient(90deg,${g})"></div><div class="ticks"><span>0%</span><span>50%</span><span>100%</span></div>
+      <div class="rows" style="margin-top:8px">${['acad', 'lib', 'dine', 'dorm'].map((c) => `<i class="sw" style="background:#${ramp(ACT_STOPS, occ(c, h, state.weekend), tmpC).getHexString()}"></i><span>${ACT_ZH[c]}</span><span class="n">${avg(c)}%</span>`).join('')}</div>
+      <div class="warn">示意模拟：按${state.weekend ? '周末' : '工作日'}作息规律生成，不是传感器或刷卡数据。拖动时间轴查看一天的变化。</div>`;
+  }
+}
+
+/* ---------------- UI wiring ---------------- */
+$('#lmCount').textContent = `${LMV.length} 处`;
+$('#lmList').innerHTML = LMV.map((lm) => `<li><button data-k="${lm.k}"><svg viewBox="0 0 20 20" aria-hidden="true"><use href="#star6"/></svg><span class="nm">${esc(lm.zh)}<span class="en">${esc(lm.en || lm.names[0])}</span></span><span class="yr">${esc(String(lm.year).split(/[ –/]/)[0])}</span></button></li>`).join('');
+$('#lmList').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { selectLandmark(b.dataset.k, true); if (narrow()) toggleDrawer(false); } });
+$('#views').innerHTML = VIEWS.map((v, i) => `<button class="chip" data-v="${i}">${v.zh}</button>`).join('');
+$('#views').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const v = VIEWS[+b.dataset.v], t = new THREE.Vector3(v.t[0], 0, -v.t[1]);
+  flyTo(t, camPos(t, v.d, v.az, v.po));
+  if (narrow()) toggleDrawer(false);
+});
+$('#modes').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.mode = b.dataset.mode;
+  for (const x of document.querySelectorAll('#modes button')) x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+  paint(); renderLegend(); applyTime(); renderInfo();
+  try { localStorage.setItem('uc-twin-mode', state.mode); } catch (err) { /* storage unavailable */ }
+});
+$('#tShadows').addEventListener('change', (e) => { sun.castShadow = e.target.checked; dirty = true; });
+$('#tTrees').addEventListener('change', (e) => { trees.visible = e.target.checked; dirty = true; });
+$('#tCity').addEventListener('change', (e) => { groups[1].mesh.visible = groups[1].lines.visible = e.target.checked; dirty = true; });
+$('#tStars').addEventListener('change', (e) => { stems.visible = e.target.checked; dirty = true; });
+$('#tSigns').addEventListener('change', () => { dirty = true; });
+$('#tod').addEventListener('input', (e) => { setLive(false); setPlaying(false); state.min = +e.target.value; applyTime(); });
+$('#date').addEventListener('change', (e) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(e.target.value); if (!m) return;
+  setLive(false); state.date = { y: +m[1], mo: +m[2], d: +m[3] }; computeDay(); applyTime();
+});
+$('#liveBtn').addEventListener('click', () => setLive(!state.live));
+$('#playBtn').addEventListener('click', () => setPlaying(!state.playing));
+$('#compass').addEventListener('click', () => {
+  const T = controls.target.clone(), o = camera.position.clone().sub(T), d = o.length(), po = Math.acos(o.y / d) / DEG;
+  flyTo(T, camPos(T, d, 180, po));
+});
+function toggleDrawer(force) {
+  const c = $('#controls'), open = force ?? !c.classList.contains('open');
+  c.classList.toggle('open', open); $('#menuBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+$('#menuBtn').addEventListener('click', () => toggleDrawer());
+const about = $('#about');
+$('#aboutBtn').addEventListener('click', () => { about.hidden = false; $('#aboutClose').focus(); });
+$('#aboutClose').addEventListener('click', () => { about.hidden = true; });
+about.addEventListener('click', (e) => { if (e.target === about) about.hidden = true; });
+addEventListener('keydown', (e) => { if (e.key === 'Escape') { about.hidden = true; toggleDrawer(false); } });
+$('#bib').innerHTML = BIB.map((b) => `<li>${b}</li>`).join('');
+const nb = B.filter((b) => !b.part).length, nu = B.filter((b) => !b.part && b.u).length;
+$('#aboutData').innerHTML = `建筑轮廓、名称、地址与层数来自 OpenStreetMap（ODbL 许可，抓取于 ${OSM_DATE_ZH}），共 ${fmt(nb)} 栋建筑，其中 ${fmt(nu)} 栋属芝加哥大学。OSM 里标注了实测高度的只有 2 处，其余按“层数 × 3.6 米”或建筑类型估算，少数地标为人工估算，详情面板会注明每栋楼的高度来源。太阳位置按 NOAA 简化算法和芝加哥时区实时计算，阴影随日期与时刻变化。门牌网格坐标由 17 条已知街道的中心线拟合，误差约 ±20 号。“活动”视图是按作息规律生成的示意模拟，不是实测数据。`;
+$('#foot').innerHTML = `${fmt(nb)} 栋建筑 · ${fmt(nu)} 栋属芝大 · ${fmt(nTrees)} 棵树<br>拖动平移 · 右键或双指旋转 · 滚轮缩放`;
+
+/* pointer: hover + click */
+const tip = $('#tip');
+let downAt = null, hoverReq = null;
+canvas.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; flight = null; });
+canvas.addEventListener('pointerup', (e) => {
+  if (!downAt) return;
+  const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y), dt = performance.now() - downAt.t;
+  downAt = null;
+  if (moved > 5 || dt > 600 || e.button !== 0) return;
+  const { b } = pick(e.clientX, e.clientY);
+  if (b) { selectBuilding(b.idx); if (narrow()) toggleDrawer(false); }
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  hoverReq = { x: e.clientX, y: e.clientY };
+});
+canvas.addEventListener('pointerleave', () => { hoverReq = null; tip.hidden = true; state.hover = null; hovMesh.visible = false; $('#cursorGrid').textContent = ''; dirty = true; });
+function doHover() {
+  if (!hoverReq || downAt) return;
+  const { x, y } = hoverReq; hoverReq = null;
+  const { b, ground } = pick(x, y);
+  if (ground) $('#cursorGrid').textContent = `≈ ${gridLabel(ground.x, ground.z)}`;
+  const key = b ? groupOf(b.idx)[0] : null;
+  if (key !== state.hover) { state.hover = key; setHL(hovMesh, b && key !== (state.sel && state.sel.idx) ? groupOf(b.idx) : null); dirty = true; }
+  if (!b) { tip.hidden = true; canvas.style.cursor = ''; return; }
+  canvas.style.cursor = 'pointer';
+  const root = B[key], lm = root.lm ? LMK[root.lm] : null;
+  const top = Math.max(...groupOf(b.idx).map((i) => B[i].top));
+  tip.innerHTML = `<b>${esc(root.name || TYPE_ZH[root.t] || '建筑')}</b>${lm ? `<div>${esc(lm.zh)}</div>` : ''}<div class="m mono">${esc(root.addr || '≈ ' + gridLabel(root.cx, root.cz))}</div><div class="m">${top.toFixed(0)} m · ${root.u ? '芝加哥大学' : '周边社区'}</div>`;
+  tip.hidden = false;
+  const r = app.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
+  let tx = x - r.left + 16, ty = y - r.top + 16;
+  if (tx + tw > r.width - 8) tx = x - r.left - tw - 12;
+  if (ty + th > r.height - 8) ty = y - r.top - th - 12;
+  tip.style.transform = `translate(${tx}px, ${ty}px)`;
+}
+
+/* ---------------- loop ---------------- */
+let W = 1, H = 1, dirty = true;
+function resize() {
+  W = app.clientWidth; H = app.clientHeight;
+  renderer.setSize(W, H, false);
+  camera.aspect = W / H; camera.updateProjectionMatrix();
+  for (const p of pinEls) p.el._w = 0;
+  for (const s of signEls) s.w = 0;
+  dirty = true;
+}
+new ResizeObserver(resize).observe(app);
+controls.addEventListener('change', () => { dirty = true; });
+controls.addEventListener('start', () => { flight = null; });
+let lastTick = performance.now(), lastLive = 0;
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(100, now - lastTick); lastTick = now;
+  if (flight) {
+    const t = Math.min(1, (now - flight.t0) / flight.dur), e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    controls.target.lerpVectors(flight.fT, flight.tT, e);
+    camera.position.lerpVectors(flight.fP, flight.tP, e);
+    if (t >= 1) flight = null;
+    dirty = true;
+  }
+  controls.update();
+  if (state.playing) { state.min = (state.min + dt * 0.09) % 1440; applyTime(); }
+  if (state.live && now - lastLive > 20000) { lastLive = now; syncLive(); }
+  doHover();
+  if (dirty) {
+    dirty = false;
+    updateSunRig();
+    renderer.render(scene, camera);
+    updateOverlay();
+  }
+}
+
+/* ---------------- boot ---------------- */
+let savedMode = null;
+try { savedMode = localStorage.getItem('uc-twin-mode'); } catch (err) { savedMode = null; }
+if (savedMode && ['model', 'style', 'height', 'activity'].includes(savedMode)) {
+  state.mode = savedMode;
+  for (const x of document.querySelectorAll('#modes button')) x.setAttribute('aria-pressed', x.dataset.mode === savedMode ? 'true' : 'false');
+}
+resize();
+{
+  const t = new THREE.Vector3(-150, 0, 120);
+  controls.target.copy(t);
+  camera.position.copy(camPos(t, narrow() ? 1500 : 1080, 148, 55));
+}
+paint();
+renderLegend();
+syncLive();
+selectLandmark('rockefeller', false);
+requestAnimationFrame(loop);
+$('#loading').remove();
+window.__twinReady = true;
+</script>
