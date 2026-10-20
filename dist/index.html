@@ -336,7 +336,6 @@ button{cursor:pointer}
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const D = JSON.parse(document.getElementById('campus-data').textContent);
 const META = D.meta;
@@ -521,6 +520,444 @@ function occ(cat, h, weekend) {
   return clamp(v, 0, 1);
 }
 
+/* ---------------- camera controls ---------------- */
+// Map-style camera controls, adapted from utsc-digital-twin src/controls.js for this flat scene.
+// Zoom is the part that has to feel smooth: every wheel notch, pinch step or key press is added
+// to a pending log-distance that drains with frame-rate independent exponential easing, and each
+// frame's slice of zoom is applied as a scaling about the 3D point under the cursor, so that point
+// stays exactly where it is on screen. Panning grabs the surface under the pointer and keeps it
+// there; rotation and panning carry on with inertia when released. When the view comes to rest the
+// orbit pivot is moved onto the surface along the line of sight, which does not move the camera.
+const TwinControls = (() => {
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ease = (dt, tau) => 1 - Math.exp(-dt / tau);
+const smoothstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
+return class TwinControls {
+  constructor(camera, dom, { cast, groundY, bounds, minDist, maxDist, minPitch }) {
+    this.camera = camera;
+    this.dom = dom;
+    this.cast = cast;       // (origin, dir) => {point: Vector3} | null — scene hit along a ray
+    this.groundY = groundY; // (x, z) => world height of the ground
+    this.bounds = bounds;   // {minX, maxX, minZ, maxZ}
+    this.target = new THREE.Vector3();
+    this.dist = 1000;
+    this.yaw = 0;           // heading of the view, radians clockwise from north
+    this.pitch = 0.8;       // elevation of the camera above the horizon at the target
+    this.minDist = minDist;
+    this.maxDist = maxDist;
+    this.minPitch = minPitch;
+    this.maxPitch = 1.5533; // 89°
+    this.zoomTau = 0.11;
+    this.enabled = true;
+
+    this.zoomPending = 0;
+    this.zoomAnchor = new THREE.Vector3();
+    this.rotPending = new THREE.Vector2();
+    this.panVel = new THREE.Vector2();
+    this.rotVel = new THREE.Vector2();
+    this.samples = [];
+    this.pointers = new Map();
+    this.mode = null;
+    this.grab = new THREE.Vector3();
+    this.anim = null;
+    this.dirty = true;
+    this.lastInput = 0;
+    this.settled = true;
+    this.listeners = { start: [], change: [], tap: [] };
+
+    this._ray = new THREE.Raycaster();
+    this._v = new THREE.Vector3();
+    this._fwd = new THREE.Vector3();
+    this._bind();
+    this.apply();
+  }
+
+  on(ev, fn) { this.listeners[ev].push(fn); }
+  emit(ev, ...a) { for (const fn of this.listeners[ev]) fn(...a); }
+
+  // ------------------------------------------------------------ geometry helpers
+  forward(out = this._fwd) {
+    const cp = Math.cos(this.pitch);
+    return out.set(Math.sin(this.yaw) * cp, -Math.sin(this.pitch), -Math.cos(this.yaw) * cp);
+  }
+  ndc(cx, cy) {
+    const r = this.dom.getBoundingClientRect();
+    return new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+  }
+  rayAt(cx, cy) {
+    this._ray.setFromCamera(this.ndc(cx, cy), this.camera);
+    return this._ray.ray;
+  }
+  // first surface hit under a screen point, else the ground plane
+  surfaceAt(cx, cy) {
+    const ray = this.rayAt(cx, cy);
+    const hit = this.cast(ray.origin, ray.direction);
+    if (hit) return hit.point.clone();
+    return this.planeHit(ray, this.groundY(this.target.x, this.target.z));
+  }
+  planeHit(ray, y) {
+    const dy = ray.direction.y;
+    if (Math.abs(dy) < 1e-4) return null;
+    const t = (y - ray.origin.y) / dy;
+    if (t <= 0) return null;
+    // a ray grazing the horizon would throw the point absurdly far away
+    const maxT = Math.max(this.dist * 6, 400);
+    return ray.origin.clone().addScaledVector(ray.direction, Math.min(t, maxT));
+  }
+
+  // ------------------------------------------------------------ events
+  _bind() {
+    const d = this.dom;
+    d.style.touchAction = 'none';
+    d.addEventListener('contextmenu', (e) => e.preventDefault());
+    d.addEventListener('pointerdown', (e) => this._down(e));
+    d.addEventListener('pointermove', (e) => this._move(e));
+    d.addEventListener('pointerup', (e) => this._up(e));
+    d.addEventListener('pointercancel', (e) => this._up(e));
+    d.addEventListener('wheel', (e) => this._wheel(e), { passive: false });
+    d.addEventListener('dblclick', (e) => {
+      if (!this.enabled) return;
+      this.zoomAround(e.clientX, e.clientY, e.shiftKey ? 0.85 : -0.85);
+    });
+    window.addEventListener('keydown', (e) => this._key(e));
+  }
+
+  _touchStart() {
+    this.anim = null;
+    this.panVel.set(0, 0);
+    this.rotVel.set(0, 0);
+    this.lastInput = performance.now();
+    this.settled = false;
+    this.emit('start');
+  }
+
+  _down(e) {
+    if (!this.enabled) return;
+    this.dom.setPointerCapture(e.pointerId);
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now(), button: e.button });
+    this._touchStart();
+    this.samples = [];
+    if (this.pointers.size === 1) {
+      // left drag pans, right drag (or left drag with a modifier key) rotates, middle drag zooms
+      if (e.button === 1) this._startDolly(e.clientX, e.clientY);
+      else if (e.button === 2 || e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) this.mode = 'rotate';
+      else this._startPan(e.clientX, e.clientY);
+    } else if (this.pointers.size === 2) {
+      this._startPinch();
+    }
+  }
+
+  _startPan(cx, cy) {
+    const p = this.surfaceAt(cx, cy);
+    if (!p) { this.mode = null; return; }
+    this.mode = 'pan';
+    this.grab.copy(p);
+  }
+
+  _startDolly(cx, cy) {
+    this.mode = 'dolly';
+    this.grab.copy(this.surfaceAt(cx, cy) || this.target);
+  }
+
+  _startPinch() {
+    const [a, b] = [...this.pointers.values()];
+    this.mode = 'pinch';
+    this.pinch = {
+      d: Math.hypot(a.x - b.x, a.y - b.y),
+      ang: Math.atan2(b.y - a.y, b.x - a.x),
+      mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2,
+    };
+    const p = this.surfaceAt(this.pinch.mx, this.pinch.my);
+    this.grab.copy(p || this.target);
+  }
+
+  _move(e) {
+    const p = this.pointers.get(e.pointerId);
+    if (!p || !this.enabled) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    this.lastInput = performance.now();
+    if (this.mode === 'pan') {
+      const before = this.target.clone();
+      this._panTo(e.clientX, e.clientY);
+      this._sample(this.target.x - before.x, this.target.z - before.z, 0, 0);
+    } else if (this.mode === 'rotate') {
+      const k = 0.0055;
+      this.yaw = wrapAngle(this.yaw + dx * k);
+      this.pitch = clamp(this.pitch + dy * 0.0045, this.minPitch, this.maxPitch);
+      this._sample(0, 0, dx * k, dy * 0.0045);
+      this.dirty = true;
+    } else if (this.mode === 'dolly') {
+      // drag down to move away, up to move closer, about the point that was under the pointer
+      this._scaleAbout(this.grab, Math.exp(dy * 0.005));
+      this.dirty = true;
+    } else if (this.mode === 'pinch' && this.pointers.size >= 2) {
+      const [a, b] = [...this.pointers.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const ang = Math.atan2(b.y - a.y, b.x - a.x);
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const P = this.pinch;
+      // two fingers moving up or down together tilt the view
+      const vy = my - P.my, spread = Math.abs(d - P.d);
+      if (Math.abs(vy) > 1.5 * spread && Math.abs(vy) > 0.5 && Math.abs(Math.cos(ang)) > 0.5) {
+        this.pitch = clamp(this.pitch + vy * 0.004, this.minPitch, this.maxPitch);
+      } else {
+        // pinch: scale about the grabbed point, twist: turn around the target
+        if (d > 0 && P.d > 0) this._scaleAbout(this.grab, P.d / d);
+        this.yaw = wrapAngle(this.yaw - (ang - P.ang));
+        this.apply();
+        this._panTo(mx, my);
+      }
+      this.pinch = { d, ang, mx, my };
+      this.dirty = true;
+    }
+  }
+
+  _panTo(cx, cy) {
+    this.apply();
+    const hit = this.planeHit(this.rayAt(cx, cy), this.grab.y);
+    if (!hit) return;
+    this.target.x += this.grab.x - hit.x;
+    this.target.z += this.grab.z - hit.z;
+    this._clampTarget();
+    this.dirty = true;
+  }
+
+  _sample(px, pz, ry, rp) {
+    const t = performance.now();
+    this.samples.push({ t, px, pz, ry, rp });
+    while (this.samples.length && t - this.samples[0].t > 110) this.samples.shift();
+  }
+
+  _up(e) {
+    const p = this.pointers.get(e.pointerId);
+    if (!p) return;
+    this.pointers.delete(e.pointerId);
+    try { this.dom.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
+    const now = performance.now();
+    const moved = Math.hypot(e.clientX - p.x0, e.clientY - p.y0);
+    if (this.pointers.size === 0) {
+      // fling: average velocity over the last ~100 ms, but only if the pointer was still moving
+      const s = this.samples, last = s[s.length - 1];
+      if (last && now - last.t < 60 && s.length > 1) {
+        const span = Math.max(16, now - s[0].t) / 1000;
+        let px = 0, pz = 0, ry = 0, rp = 0;
+        for (const q of s) { px += q.px; pz += q.pz; ry += q.ry; rp += q.rp; }
+        if (this.mode === 'pan') {
+          this.panVel.set(px / span, pz / span);
+          const vmax = this.dist * 2.5;
+          if (this.panVel.length() > vmax) this.panVel.setLength(vmax);
+        } else if (this.mode === 'rotate') this.rotVel.set(ry / span, rp / span);
+      }
+      if (moved < 6 && now - p.t0 < 500 && e.button !== 2) this.emit('tap', e.clientX, e.clientY, e);
+      this.mode = null;
+      this.samples = [];
+    } else if (this.pointers.size === 1) {
+      const [q] = this.pointers.values();
+      this._startPan(q.x, q.y);
+    }
+  }
+
+  _wheel(e) {
+    if (!this.enabled) return;
+    e.preventDefault();
+    let dy = e.deltaY;
+    if (e.deltaMode === 1) dy *= 33;
+    else if (e.deltaMode === 2) dy *= 400;
+    // trackpad pinches arrive as ctrl+wheel with small deltas
+    const k = e.ctrlKey ? 0.011 : 0.0026;
+    this.zoomAround(e.clientX, e.clientY, clamp(dy * k, -1.2, 1.2));
+  }
+
+  // queue a zoom of `amount` (natural-log units of distance; negative = in) about a screen point
+  zoomAround(cx, cy, amount) {
+    const fresh = performance.now() - this.lastInput > 200 || Math.abs(this.zoomPending) < 0.02;
+    this.anim = null;
+    this.panVel.set(0, 0);
+    this.lastInput = performance.now();
+    this.settled = false;
+    this.emit('start');
+    if (fresh || Math.sign(amount) !== Math.sign(this.zoomPending)) {
+      const p = cx == null ? this.target.clone() : this.surfaceAt(cx, cy);
+      this.zoomAnchor.copy(p || this.target);
+    }
+    this.zoomPending = clamp(this.zoomPending + amount, -3, 3);
+  }
+  zoomBy(amount) { this.zoomAround(null, null, amount); }
+
+  _scaleAbout(anchor, f) {
+    const nd = clamp(this.dist * f, this.minDist, this.maxDist);
+    const k = nd / this.dist;
+    this.target.sub(anchor).multiplyScalar(k).add(anchor);
+    this.dist = nd;
+    this._clampTarget();
+    return k;
+  }
+
+  _key(e) {
+    if (!this.enabled || e.target.closest('input, textarea, select, [contenteditable]')) return;
+    const step = this.dist * 0.25;
+    const f = this.forward();
+    const fx = f.x, fz = f.z, fl = Math.hypot(fx, fz) || 1;
+    let used = true;
+    switch (e.key) {
+      case 'ArrowUp': if (e.shiftKey) this.rotPending.y -= 0.12; else this.panVel.set((fx / fl) * step * 3, (fz / fl) * step * 3); break;
+      case 'ArrowDown': if (e.shiftKey) this.rotPending.y += 0.12; else this.panVel.set((-fx / fl) * step * 3, (-fz / fl) * step * 3); break;
+      case 'ArrowLeft': if (e.shiftKey) this.rotPending.x -= 0.2; else this.panVel.set((fz / fl) * step * 3, (-fx / fl) * step * 3); break;
+      case 'ArrowRight': if (e.shiftKey) this.rotPending.x += 0.2; else this.panVel.set((-fz / fl) * step * 3, (fx / fl) * step * 3); break;
+      case '+': case '=': this.zoomBy(-0.45); break;
+      case '-': case '_': this.zoomBy(0.45); break;
+      case 'q': case 'Q': this.rotPending.x -= 0.25; break;
+      case 'e': case 'E': this.rotPending.x += 0.25; break;
+      default: used = false;
+    }
+    if (used) {
+      e.preventDefault();
+      this.anim = null;
+      this.lastInput = performance.now();
+      this.settled = false;
+      this.emit('start');
+    }
+  }
+
+  // ------------------------------------------------------------ animation
+  // fly to a view; long trips rise and come back down so the move stays readable
+  flyTo({ target, dist, yaw, pitch }, duration) {
+    const from = { target: this.target.clone(), dist: this.dist, yaw: this.yaw, pitch: this.pitch };
+    const to = {
+      target: target ? target.clone() : from.target.clone(),
+      dist: clamp(dist ?? from.dist, this.minDist, this.maxDist),
+      yaw: yaw ?? from.yaw,
+      pitch: clamp(pitch ?? from.pitch, this.minPitch, this.maxPitch),
+    };
+    const travel = from.target.distanceTo(to.target);
+    const hop = Math.log(1 + travel / Math.max(from.dist, to.dist)) * 0.9;
+    const dur = duration ?? clamp(0.9 + 0.45 * hop + 0.25 * Math.abs(Math.log(to.dist / from.dist)), 0.9, 2.6);
+    this.anim = { t: 0, dur, from, to, hop, dyaw: wrapAngle(to.yaw - from.yaw) };
+    this.zoomPending = 0;
+    this.panVel.set(0, 0);
+    this.rotVel.set(0, 0);
+    this.settled = false;
+  }
+  // set a view at once
+  jumpTo({ target, dist, yaw, pitch }) {
+    if (target) this.target.copy(target);
+    if (dist != null) this.dist = clamp(dist, this.minDist, this.maxDist);
+    if (yaw != null) this.yaw = wrapAngle(yaw);
+    if (pitch != null) this.pitch = clamp(pitch, this.minPitch, this.maxPitch);
+    this.anim = null;
+    this.zoomPending = 0;
+    this.panVel.set(0, 0);
+    this.rotVel.set(0, 0);
+    this.rotPending.set(0, 0);
+    this.settled = false;
+    this.dirty = true;
+    this.apply();
+  }
+  rotateBy(dyaw, dpitch) {
+    this.rotPending.x += dyaw;
+    this.rotPending.y += dpitch;
+    this.anim = null;
+    this.settled = false;
+    this.lastInput = performance.now();
+  }
+
+  // ------------------------------------------------------------ per frame
+  update(dt) {
+    dt = Math.min(dt, 0.1);
+    let moving = this.dirty;
+    this.dirty = false;
+    if (this.anim) {
+      const a = this.anim;
+      a.t = Math.min(1, a.t + dt / a.dur);
+      const s = a.t < 0.5 ? 4 * a.t * a.t * a.t : 1 - Math.pow(-2 * a.t + 2, 3) / 2;
+      this.target.lerpVectors(a.from.target, a.to.target, s);
+      const ld = Math.log(a.from.dist) + (Math.log(a.to.dist) - Math.log(a.from.dist)) * s + a.hop * Math.sin(Math.PI * s);
+      this.dist = clamp(Math.exp(ld), this.minDist, this.maxDist * 1.3);
+      this.yaw = wrapAngle(a.from.yaw + a.dyaw * s);
+      this.pitch = a.from.pitch + (a.to.pitch - a.from.pitch) * s;
+      if (a.t >= 1) this.anim = null;
+      moving = true;
+    } else {
+      if (Math.abs(this.zoomPending) > 1e-4) {
+        const step = this.zoomPending * ease(dt, this.zoomTau);
+        this.zoomPending -= step;
+        const k = this._scaleAbout(this.zoomAnchor, Math.exp(step));
+        // stop draining once the zoom limit is reached, or when what is left is imperceptible
+        if ((Math.abs(k - 1) < 1e-7 && Math.abs(step) > 1e-6) || Math.abs(this.zoomPending) < 1e-4) this.zoomPending = 0;
+        moving = true;
+      }
+      if (this.mode !== 'pan' && this.mode !== 'pinch' && this.panVel.lengthSq() > 0.01) {
+        this.target.x += this.panVel.x * dt;
+        this.target.z += this.panVel.y * dt;
+        this.panVel.multiplyScalar(Math.exp(-dt / 0.33));
+        if (this.panVel.lengthSq() < 0.04) this.panVel.set(0, 0);
+        this._clampTarget();
+        moving = true;
+      }
+      if (this.mode !== 'rotate' && this.rotVel.lengthSq() > 1e-6) {
+        this.yaw = wrapAngle(this.yaw + this.rotVel.x * dt);
+        this.pitch = clamp(this.pitch + this.rotVel.y * dt, this.minPitch, this.maxPitch);
+        this.rotVel.multiplyScalar(Math.exp(-dt / 0.25));
+        if (this.rotVel.lengthSq() < 1e-6) this.rotVel.set(0, 0);
+        moving = true;
+      }
+      if (this.rotPending.lengthSq() > 1e-7) {
+        const f = ease(dt, 0.12);
+        const sx = this.rotPending.x * f, sy = this.rotPending.y * f;
+        this.rotPending.x -= sx; this.rotPending.y -= sy;
+        this.yaw = wrapAngle(this.yaw + sx);
+        this.pitch = clamp(this.pitch + sy, this.minPitch, this.maxPitch);
+        if (this.rotPending.lengthSq() < 1e-7) this.rotPending.set(0, 0);
+        moving = true;
+      }
+    }
+    if (moving) {
+      this.apply();
+      this.emit('change');
+      return true;
+    }
+    // at rest: put the pivot back on the surface along the line of sight (the view does not change)
+    if (!this.settled && !this.mode && performance.now() - this.lastInput > 220) {
+      this.settled = true;
+      const hit = this.cast(this.camera.position, this.forward(new THREE.Vector3()));
+      if (hit) {
+        const d = this.camera.position.distanceTo(hit.point);
+        if (d >= this.minDist && d <= this.maxDist) { this.target.copy(hit.point); this.dist = d; }
+      }
+    }
+    return false;
+  }
+
+  _clampTarget() {
+    const b = this.bounds;
+    this.target.x = clamp(this.target.x, b.minX, b.maxX);
+    this.target.z = clamp(this.target.z, b.minZ, b.maxZ);
+  }
+
+  apply() {
+    // far away, keep looking down a little so the model never turns into a sliver on the horizon
+    const minP = this.minPitch + Math.max(0, 0.62 - this.minPitch) * smoothstep(this.maxDist * 0.43, this.maxDist, this.dist);
+    this.pitch = clamp(this.pitch, minP, this.maxPitch);
+    // never let the camera dip under the ground
+    const f = this.forward();
+    let cam = this._v.copy(this.target).addScaledVector(f, -this.dist);
+    const g = this.groundY(cam.x, cam.z) + 2.2;
+    if (cam.y < g) {
+      this.pitch = clamp(Math.asin(clamp((g - this.target.y) / this.dist, -1, 1)), this.pitch, this.maxPitch);
+      this.forward(f);
+      cam = this._v.copy(this.target).addScaledVector(f, -this.dist);
+    }
+    const c = this.camera;
+    c.position.copy(cam);
+    c.quaternion.setFromEuler(new THREE.Euler(-this.pitch, -this.yaw, 0, 'YXZ'));
+    c.updateMatrixWorld();
+  }
+};
+})();
+
 /* ---------------- renderer & scene ---------------- */
 const canvas = $('#scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -530,16 +967,13 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xe4eef4, 1500, 4200);
 const camera = new THREE.PerspectiveCamera(34, 1, 3, 20000);
-const controls = new OrbitControls(camera, canvas);
-controls.enableDamping = true;
-controls.dampingFactor = 0.09;
-controls.screenSpacePanning = false;
-controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
-controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
-controls.minDistance = 50;
-controls.maxDistance = 3600;
-controls.maxPolarAngle = 1.38;
-controls.zoomToCursor = true;
+// the view stays over the mapped area and no lower than 11° above the horizon
+const controls = new TwinControls(camera, canvas, {
+  cast: (o, d) => castRay(o, d),
+  groundY: () => 0,
+  bounds: { minX: META.bbox[0], maxX: META.bbox[2], minZ: -META.bbox[3], maxZ: -META.bbox[1] },
+  minDist: 50, maxDist: 3600, minPitch: Math.PI / 2 - 1.38,
+});
 
 const hemi = new THREE.HemisphereLight(0xffffff, 0xb9c3cc, 1.0);
 scene.add(hemi);
@@ -974,11 +1408,9 @@ function updateOverlay() {
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vCc = new THREE.Vector3(), hitP = new THREE.Vector3(), boxP = new THREE.Vector3();
-function pick(cx, cy) {
-  const r = canvas.getBoundingClientRect();
-  ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
-  raycaster.setFromCamera(ndc, camera);
-  const ray = raycaster.ray, cand = [];
+// nearest building along a ray: { b, d } with d the distance along the ray (b is null when nothing is hit)
+function hitBuilding(ray) {
+  const cand = [];
   const cityOn = groups[1].mesh.visible;
   for (const b of B) { if (b.g === 1 && !cityOn) continue; if (ray.intersectBox(b.box, boxP)) cand.push([boxP.distanceToSquared(ray.origin), b]); }
   cand.sort((a, b) => a[0] - b[0]);
@@ -991,9 +1423,28 @@ function pick(cx, cy) {
       if (ray.intersectTriangle(vA, vB, vCc, false, hitP)) { const d = hitP.distanceTo(ray.origin); if (d < bestD) { bestD = d; best = b; } }
     }
   }
+  return { b: best, d: bestD };
+}
+function pick(cx, cy) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const ray = raycaster.ray;
   const t = -ray.origin.y / ray.direction.y;
   const ground = t > 0 ? ray.origin.clone().addScaledVector(ray.direction, t) : null;
-  return { b: best, ground };
+  return { b: hitBuilding(ray).b, ground };
+}
+// first surface along a ray, for the camera controls: a building, else the ground inside the mapped area
+const castR = new THREE.Ray();
+function castRay(origin, dir) {
+  const ray = castR.set(origin, dir);
+  const { d } = hitBuilding(ray);
+  const t = dir.y < -1e-6 ? -origin.y / dir.y : -1;
+  if (t > 0 && t < d) {
+    const x = origin.x + dir.x * t, z = origin.z + dir.z * t;
+    if (x >= BX0 && x <= BX1 && z >= -BN1 && z <= -BN0) return { point: new THREE.Vector3(x, 0, z) };
+  }
+  return d < Infinity ? { point: ray.at(d, new THREE.Vector3()) } : null;
 }
 
 /* ---------------- info panel ---------------- */
@@ -1073,10 +1524,15 @@ function selectLandmark(k, fly) {
   else { state.sel = { idx: lm.main, k }; setHL(selMesh, lm.idx); renderInfo(); }
   if (fly) flyToLandmark(lm);
 }
-let flight = null;
+// the view from camera position `pos` looking at `target`, as TwinControls describes it
+function viewFrom(target, pos) {
+  const o = pos.clone().sub(target), d = o.length();
+  return { target: target.clone(), dist: d, yaw: Math.atan2(-o.x, o.z), pitch: Math.asin(clamp(o.y / d, -1, 1)) };
+}
 function flyTo(target, pos) {
-  if (reduceMotion) { controls.target.copy(target); camera.position.copy(pos); flight = null; dirty = true; return; }
-  flight = { t0: performance.now(), dur: 1200, fT: controls.target.clone(), fP: camera.position.clone(), tT: target.clone(), tP: pos.clone() };
+  const v = viewFrom(target, pos);
+  if (reduceMotion) { controls.jumpTo(v); dirty = true; return; }
+  controls.flyTo(v, 1.2);
 }
 function camPos(target, dist, azDeg, polarDeg) {
   const az = azDeg * DEG, po = polarDeg * DEG;
@@ -1172,7 +1628,7 @@ $('#foot').innerHTML = `${fmt(nb)} 栋建筑 · ${fmt(nu)} 栋属芝大 · ${fmt
 /* pointer: hover + click */
 const tip = $('#tip');
 let downAt = null, hoverReq = null;
-canvas.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; flight = null; });
+canvas.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; });
 canvas.addEventListener('pointerup', (e) => {
   if (!downAt) return;
   const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y), dt = performance.now() - downAt.t;
@@ -1217,20 +1673,13 @@ function resize() {
   dirty = true;
 }
 new ResizeObserver(resize).observe(app);
-controls.addEventListener('change', () => { dirty = true; });
-controls.addEventListener('start', () => { flight = null; });
+controls.on('change', () => { dirty = true; });
 let lastTick = performance.now(), lastLive = 0;
 function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.min(100, now - lastTick); lastTick = now;
-  if (flight) {
-    const t = Math.min(1, (now - flight.t0) / flight.dur), e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    controls.target.lerpVectors(flight.fT, flight.tT, e);
-    camera.position.lerpVectors(flight.fP, flight.tP, e);
-    if (t >= 1) flight = null;
-    dirty = true;
-  }
-  controls.update();
+  if (window.twin) window.twin.frames++;
+  if (controls.update(dt / 1000)) dirty = true;
   if (state.playing) { state.min = (state.min + dt * 0.09) % 1440; applyTime(); }
   if (state.live && now - lastLive > 20000) { lastLive = now; syncLive(); }
   doHover();
@@ -1252,13 +1701,14 @@ if (savedMode && ['model', 'style', 'height', 'activity'].includes(savedMode)) {
 resize();
 {
   const t = new THREE.Vector3(-150, 0, 120);
-  controls.target.copy(t);
-  camera.position.copy(camPos(t, narrow() ? 1500 : 1080, 148, 55));
+  controls.jumpTo(viewFrom(t, camPos(t, narrow() ? 1500 : 1080, 148, 55)));
 }
 paint();
 renderLegend();
 syncLive();
 selectLandmark('rockefeller', false);
+// handle for debugging from the console and for the automated browser checks in tools/qa.mjs
+window.twin = { controls, camera, castRay, frames: 0 };
 requestAnimationFrame(loop);
 $('#loading').remove();
 window.__twinReady = true;
