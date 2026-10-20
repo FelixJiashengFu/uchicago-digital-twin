@@ -75,6 +75,24 @@ const screenOf = (page, p) => page.evaluate((p) => {
   return [((q.x + 1) / 2) * rect.width + rect.left, ((1 - q.y) / 2) * rect.height + rect.top];
 }, p);
 
+// wait until the camera is completely at rest (no flight, fling, pending zoom or rotation)
+const waitIdle = (page) => page.waitForFunction(() => {
+  const c = window.twin.controls;
+  return !c.anim && !c.mode && c.zoomPending === 0 && c.panVel.lengthSq() === 0 && c.rotVel.lengthSq() === 0 && c.rotPending.lengthSq() === 0 && c.settled;
+}, null, { timeout: 15000 });
+// a point near (x, y) where a press lands on the canvas rather than on a label or pin
+const freePoint = (page, x, y) => page.evaluate(([x, y]) => {
+  const canvas = document.querySelector('#scene');
+  for (let r = 0; r <= 160; r += 8) {
+    for (let a = 0; a < 16; a++) {
+      const px = Math.round(x + r * Math.cos(a * Math.PI / 8)), py = Math.round(y + r * Math.sin(a * Math.PI / 8));
+      if (document.elementFromPoint(px, py) === canvas) return [px, py];
+      if (r === 0) break;
+    }
+  }
+  return [x, y];
+}, [x, y]);
+
 // remember where each fly-to should leave the camera, then compare with where it ended up
 const recordFlights = (page) => page.evaluate(() => {
   const c = window.twin.controls, fly = c.flyTo.bind(c);
@@ -168,38 +186,53 @@ function zoomStats(z, x, y) {
   report.burst = { from: Math.round(burst[0]), to: Math.round(burst[burst.length - 1]), biggestFrameShare: +(Math.max(...bsteps) / btotal).toFixed(3) };
   check('burst of six notches: no frame above 15% of the zoom', report.burst.biggestFrameShare < 0.15, report.burst);
 
+  // --- a notch with the pointer over a landmark pin zooms too
+  await view(page, { dist: 900, pitch: 0.75 });
+  await waitIdle(page);
+  const overPin = await page.evaluate(() => new Promise((res) => {
+    const el = [...document.querySelectorAll('#overlay .pin')].find((e) => !e.hidden && e.offsetWidth);
+    if (!el) { res(null); return; }
+    const r = el.getBoundingClientRect(), d0 = window.twin.controls.dist;
+    el.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, cancelable: true }));
+    setTimeout(() => res({ pin: el.textContent, factor: +(d0 / window.twin.controls.dist).toFixed(3) }), 800);
+  }));
+  check('a notch over a landmark pin zooms too', overPin && overPin.factor > 1.25, overPin);
+
   // --- left drag pans and keeps the grabbed point under the pointer
   await view(page, { dist: 900, pitch: 0.75 });
-  await settle(page, 900);
-  const grabbed = await surfaceUnder(page, 560, 380);
-  await page.mouse.move(560, 380);
+  await waitIdle(page);
+  const [ax, ay] = await freePoint(page, 560, 380);
+  const grabbed = await surfaceUnder(page, ax, ay);
+  await page.mouse.move(ax, ay);
   await page.mouse.down();
-  await page.mouse.move(740, 520, { steps: 12 });
+  await page.mouse.move(ax + 180, ay + 140, { steps: 12 });
   await nextFrame(page);
   const grabAt = await screenOf(page, grabbed);
   await page.mouse.up();
-  const panErr = Math.hypot(grabAt[0] - 740, grabAt[1] - 520);
-  check('left drag pans with the grabbed point under the pointer', panErr < 3, { errorPx: +panErr.toFixed(2) });
-  await settle(page, 1200);
+  const panErr = Math.hypot(grabAt[0] - ax - 180, grabAt[1] - ay - 140);
+  check('left drag pans with the grabbed point under the pointer', panErr < 3, { errorPx: +panErr.toFixed(2), at: [ax, ay] });
+  await waitIdle(page); // the release flings the view on for a while
 
   // --- right drag rotates, middle drag zooms
+  const [bx, by] = await freePoint(page, 680, 420);
   const r0 = await camState(page);
-  await page.mouse.move(680, 420);
+  await page.mouse.move(bx, by);
   await page.mouse.down({ button: 'right' });
-  await page.mouse.move(800, 420, { steps: 12 });
+  await page.mouse.move(bx + 120, by, { steps: 12 });
   const r1 = await camState(page);
   await page.mouse.up({ button: 'right' });
   const dyaw = Math.atan2(Math.sin(r1.yaw - r0.yaw), Math.cos(r1.yaw - r0.yaw));
-  check('right drag rotates the view', Math.abs(dyaw - 120 * 0.0055) < 0.05, { dyaw: +dyaw.toFixed(3) });
-  await settle(page, 1200);
+  check('right drag rotates the view', Math.abs(dyaw - 120 * 0.0055) < 0.05, { dyaw: +dyaw.toFixed(3), at: [bx, by] });
+  await waitIdle(page);
+  const [cx2, cy2] = await freePoint(page, 680, 380);
   const m0 = await camState(page);
-  await page.mouse.move(680, 380);
+  await page.mouse.move(cx2, cy2);
   await page.mouse.down({ button: 'middle' });
-  await page.mouse.move(680, 480, { steps: 10 });
+  await page.mouse.move(cx2, cy2 + 100, { steps: 10 });
   const m1 = await camState(page);
   await page.mouse.up({ button: 'middle' });
-  check('middle drag down zooms out', m1.dist / m0.dist > 1.5 && m1.dist / m0.dist < 1.8, { ratio: +(m1.dist / m0.dist).toFixed(3) });
-  await settle(page, 800);
+  check('middle drag down zooms out', m1.dist / m0.dist > 1.5 && m1.dist / m0.dist < 1.8, { ratio: +(m1.dist / m0.dist).toFixed(3), at: [cx2, cy2] });
+  await waitIdle(page);
 
   // --- landmark list and view chips fly the camera, the compass turns it north up
   await recordFlights(page);

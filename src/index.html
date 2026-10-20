@@ -1666,6 +1666,8 @@ function resize() {
 }
 new ResizeObserver(resize).observe(app);
 controls.on('change', () => { dirty = true; });
+// landmark pins take pointer events (they are clickable), so pass their wheel notches to the zoom
+overlay.addEventListener('wheel', (e) => controls._wheel(e), { passive: false });
 let lastTick = performance.now(), lastLive = 0;
 function loop(now) {
   requestAnimationFrame(loop);
